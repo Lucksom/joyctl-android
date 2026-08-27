@@ -44,7 +44,12 @@ jobs:
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk JoyCtl-Android-${GITHUB_REF_NAME:-manual}.apk
+        run: |
+          NAME="${GITHUB_REF_NAME:-manual}"
+          # 分支名可能带 /，会被当成目录路径，这里统一替换成 -
+          SAFE_NAME=$(printf '%s' "$NAME" | tr '/' '-')
+          cp app/build/outputs/apk/release/app-release.apk "JoyCtl-Android-${SAFE_NAME}.apk"
+          ls -l JoyCtl-Android-*.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
