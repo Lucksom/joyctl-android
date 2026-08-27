@@ -369,7 +369,7 @@ class MainActivity : Activity() {
         val templates = panel(
             root,
             "一键策略模板",
-            "模板只改当前载入的规则 JSON。点「选择游戏」可多选本机应用，选完后点「修改」才会写入规则。「全部游戏」只改 Joyose 配置里已有的游戏条目，不会给本机其它 App 新增配置。改完后仍需保存并推送到设备。",
+            "模板只改当前载入的规则 JSON。点「选择游戏」可多选本机应用，选完后点「修改」才会写入规则。「全部游戏」只改 Joyose 配置里已有的游戏条目，不会给本机其它 App 新增配置。每个模板旁的「还原」会按当前机型云端规则把这一项恢复默认，其余内容不动。改完后仍需保存并推送到设备。",
         )
         packageInput = input("多个包名用逗号分隔；留空 = Joyose 配置里的全部游戏", "")
         templates.addView(label("选择目标游戏（仅作用于 Joyose 配置里已有的游戏条目）"))
@@ -379,6 +379,8 @@ class MainActivity : Activity() {
                 "解锁指定游戏的帧率锁",
                 "从 Joyose 帧率锁名单中移除所选游戏；「全部游戏」会清空该名单，不会给其它 App 加条目",
                 "🎯 选择游戏",
+                restoreScope = "novatek",
+                restoreUsesPackages = true,
             ) { pickGameThenApply(TemplateId.UNLOCK_FPS) },
         )
         pidTempInput = input("例如 47", "47")
@@ -393,6 +395,8 @@ class MainActivity : Activity() {
                 "多选游戏后，把对应策略组的 PID 温控阈值改成你填的温度。App 会转成 Joyose 可识别的 start:end 格式，例如 47 → 47:48，并保留原帧率/PID 参数。点「全部游戏」只改配置里已有 PID 的策略组。",
                 "🎯 选择游戏",
                 extra = pidTempBox,
+                restoreScope = "pid_thermal",
+                restoreUsesPackages = true,
             ) { pickGameThenApply(TemplateId.RELAX_PID) },
         )
         templates.addView(
@@ -400,6 +404,8 @@ class MainActivity : Activity() {
                 "提升指定游戏 CPU 大核基线",
                 "只提升 Joyose migt 名单里已有的所选游戏；「全部游戏」改该名单中的全部条目",
                 "🎯 选择游戏",
+                restoreScope = "migt",
+                restoreUsesPackages = true,
             ) { pickGameThenApply(TemplateId.RAISE_MIGT) },
         )
         templates.addView(
@@ -407,6 +413,7 @@ class MainActivity : Activity() {
                 "提升所有游戏大核基线",
                 "所有游戏大核基线统一提到 1400MHz",
                 "应用",
+                restoreScope = "migt",
             ) { applyTemplate(TemplateId.RAISE_MIGT_ALL) },
         )
         templates.addView(
@@ -414,6 +421,7 @@ class MainActivity : Activity() {
                 "移除全局温度降帧表",
                 "清空温度降帧段，温度不再触发全局降帧",
                 "应用",
+                restoreScope = "thermal_table",
             ) { applyTemplate(TemplateId.CLEAR_THERMAL) },
         )
         templates.addView(
@@ -421,6 +429,7 @@ class MainActivity : Activity() {
                 "关闭后台冻结",
                 "游戏切后台不绑小核（更耗电但秒恢复）",
                 "应用",
+                restoreScope = "background_freeze",
             ) { applyTemplate(TemplateId.DISABLE_BACKGROUND_FREEZE) },
         )
         templates.addView(
@@ -428,6 +437,7 @@ class MainActivity : Activity() {
                 "关闭监控与质量上报",
                 "关闭 monitor 监控/分析上报、清空 MQS 监控名单、关闭扩展功耗采集",
                 "应用",
+                restoreScope = "telemetry",
             ) { applyTemplate(TemplateId.DISABLE_TELEMETRY) },
         )
         templates.addView(
@@ -435,6 +445,7 @@ class MainActivity : Activity() {
                 "关闭资源预下载",
                 "关闭游戏资源预下载（省流量/存储）",
                 "应用",
+                restoreScope = "predownload",
             ) { applyTemplate(TemplateId.DISABLE_PREDOWNLOAD) },
         )
         templates.addView(
@@ -442,6 +453,7 @@ class MainActivity : Activity() {
                 "禁用 L3 卡顿日志采集",
                 "强制关闭卡顿 trace 采集（隐私+省 CPU/流量）",
                 "应用",
+                restoreScope = "l3_jank",
             ) { applyTemplate(TemplateId.DISABLE_L3_LOG) },
         )
         templates.addView(
@@ -449,13 +461,15 @@ class MainActivity : Activity() {
                 "开启 QSync 显示同步（实验性）",
                 "开启高通 QSync 显示同步（厂商默认关闭，未实测兼容性）",
                 "应用",
+                restoreScope = "qsync",
             ) { applyTemplate(TemplateId.ENABLE_QSYNC) },
         )
         templates.addView(
             templateCard(
                 "恢复原始配置",
-                "撤销所有修改，恢复原始内容",
+                "撤销所有修改，恢复成载入时的原始内容；旁边的「还原」按云端规则整条覆盖当前规则",
                 "应用",
+                restoreScope = Restores.SCOPE_ALL,
             ) { applyTemplate(TemplateId.RESET) },
         )
         val stats = panel(root, "规则统计")
@@ -465,7 +479,7 @@ class MainActivity : Activity() {
         val features = panel(
             root,
             "功能识别",
-            "始终对照这条规则载入时的原始内容。橙色「已改」表示当前值已偏离原始规则，灰色「未改」表示这项还没动过。",
+            "始终对照当前机型的云端规则。橙色「已改」表示当前值已偏离云端默认，灰色「未改」表示这项还没动过。每项旁边的「还原」只会把这一项恢复成云端默认值，规则里其余内容不动。",
         )
         featureSummaryBox = LinearLayout(this).also { it.orientation = LinearLayout.VERTICAL }
         features.addView(featureSummaryBox)
@@ -1665,7 +1679,7 @@ class MainActivity : Activity() {
         card.addView(valueView, valueLp)
         val originalValue = row.original
         if (changed && !originalValue.isNullOrBlank() && originalValue != row.value) {
-            val fromView = text("原始：$originalValue", 11, 0xff9a3412.toInt())
+            val fromView = text("云端：$originalValue", 11, 0xff9a3412.toInt())
             val fromLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             fromLp.setMargins(0, dp(2), 0, 0)
             card.addView(fromView, fromLp)
@@ -1676,7 +1690,55 @@ class MainActivity : Activity() {
             extraLp.setMargins(0, dp(2), 0, 0)
             card.addView(extraView, extraLp)
         }
+        if (Restores.supports(row.key)) {
+            val restoreBtn = action("↩️ 还原为云端默认", kind = if (changed) "success" else "default") {
+                restoreToCloud(row.key)
+            }
+            restoreBtn.setTextSize(12f)
+            restoreBtn.minHeight = dp(34)
+            (restoreBtn.layoutParams as LinearLayout.LayoutParams).setMargins(0, dp(6), 0, 0)
+            card.addView(restoreBtn)
+        }
         return card
+    }
+
+    /**
+     * 把某一项还原成「当前机型云端规则」里的默认值。
+     * 只改这一项，规则里的其余内容保持不变。
+     */
+    private fun restoreToCloud(scope: String, pkg: String = "") {
+        val rule = activeRule
+        if (rule == null || editor.text.isBlank()) {
+            toast("请先载入规则")
+            appendLog("warn", "还原未执行", "请先载入规则")
+            return
+        }
+        val name = Restores.scopeLabel(scope)
+        val baseline = resolveBaselineContent(rule, baselineRuleJson)
+        if (baseline.isBlank()) {
+            toast("没有云端对照规则，请先到「云端」页拉取")
+            appendLog("warn", "还原未执行：$name", "缺少云端对照规则")
+            return
+        }
+        if (!baselineLabel.startsWith("云端")) {
+            appendLog("warn", "还原对照的不是云端规则", "当前对照：$baselineLabel。建议先到「云端」页拉取当前机型规则后再还原。")
+        }
+        appendLog("info", "开始还原：$name", "对照：$baselineLabel" + if (pkg.isNotBlank()) "\n目标：$pkg" else "")
+        try {
+            val result = Restores.restore(scope, editor.text.toString(), baseline, pkg)
+            loadingEditor = true
+            editor.setText(prettyJson(result.json))
+            loadingEditor = false
+            dirty = true
+            updateDirtyText()
+            updateRuleStats(result.json)
+            toast(result.message)
+            appendLog("ok", "还原完成：$name（尚未保存/推送）", result.message)
+        } catch (e: Exception) {
+            val msg = e.message ?: e.javaClass.simpleName
+            toast("还原失败：$msg")
+            appendLog("error", "还原失败：$name", msg)
+        }
     }
 
     private fun reloadCurrentRule() {
@@ -2043,6 +2105,8 @@ class MainActivity : Activity() {
         desc: String,
         button: String,
         extra: View? = null,
+        restoreScope: String? = null,
+        restoreUsesPackages: Boolean = false,
         onClick: () -> Unit,
     ): LinearLayout {
         val card = LinearLayout(this)
@@ -2065,9 +2129,22 @@ class MainActivity : Activity() {
             extra.layoutParams = extraLp
             card.addView(extra)
         }
-        card.addView(action(button, kind = "primary", onClick = onClick).also {
-            (it.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
-        })
+        if (restoreScope == null) {
+            card.addView(action(button, kind = "primary", onClick = onClick).also {
+                (it.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
+            })
+        } else {
+            val buttons = row()
+            buttons.addView(rowAction(button, kind = "primary", onClick = onClick))
+            buttons.addView(
+                rowAction("↩️ 还原", kind = "success") {
+                    restoreToCloud(restoreScope, if (restoreUsesPackages) packageInput.text.toString().trim() else "")
+                }.also {
+                    (it.layoutParams as LinearLayout.LayoutParams).setMargins(0, dp(4), 0, 0)
+                },
+            )
+            card.addView(buttons)
+        }
         return card
     }
 
@@ -2965,6 +3042,391 @@ object Templates {
         val root = JSONObject(normalizeJson(current))
         edit(booster(root))
         return TemplateResult(message, root.toString())
+    }
+
+    private fun booster(root: JSONObject): JSONObject {
+        root.optJSONObject("params")?.optJSONObject("game_booster")?.let { return it }
+        root.optJSONObject("game_booster")?.let { return it }
+        throw IOException("未找到 game_booster")
+    }
+}
+
+/**
+ * 单项还原：把某一个开关/功能恢复成「当前机型云端规则」里的默认值，
+ * 其余字段一律保持当前编辑器里的内容不变。
+ */
+object Restores {
+    const val SCOPE_ALL = "all"
+
+    fun scopeLabel(scope: String): String = when (scope) {
+        SCOPE_ALL -> "整条规则"
+        "novatek" -> "屏幕驱动帧率锁"
+        "pid_thermal" -> "策略组温控 PID"
+        "dynamic_fps" -> "全局温度降帧表"
+        "dynamic_fps_m" -> "天玑温度降帧表"
+        "thermal_table" -> "温度降帧表"
+        "migt" -> "migt CPU 大核基线"
+        "background_freeze" -> "后台冻结"
+        "monitor" -> "性能监控"
+        "analytics" -> "分析上报"
+        "telemetry" -> "监控与质量上报"
+        "mqs_enhance" -> "重点监控游戏"
+        "expand_power" -> "扩展功耗采集"
+        "predownload" -> "资源预下载"
+        "l3_jank" -> "L3 卡顿日志采集"
+        "qsync" -> "QSync 显示同步"
+        "game_list" -> "游戏识别列表"
+        else -> scope
+    }
+
+    /** 功能识别面板的行 key 是否支持单项还原。 */
+    fun supports(scope: String): Boolean = scope == SCOPE_ALL || scopeLabel(scope) != scope
+
+    fun restore(scope: String, current: String, baseline: String, pkg: String = ""): TemplateResult {
+        if (baseline.isBlank()) throw IOException("没有云端对照规则，请先到「云端」页拉取当前机型的规则")
+        val root = JSONObject(normalizeJson(current))
+        val baseRoot = JSONObject(normalizeJson(baseline))
+        if (scope == SCOPE_ALL) {
+            if (root.toString() == baseRoot.toString()) {
+                return TemplateResult("整条规则已与云端一致，无需还原", root.toString())
+            }
+            return TemplateResult("已按云端规则还原整条规则", baseRoot.toString())
+        }
+        if (scope == "game_list") return restoreGameList(root, baseRoot)
+        val gb = booster(root)
+        val baseGb = booster(baseRoot)
+        return when (scope) {
+            "novatek" -> restoreFpsList(root, gb, baseGb, pkg)
+            "pid_thermal" -> restorePid(root, gb, baseGb, pkg)
+            "migt" -> restoreMigt(root, gb, baseGb, pkg)
+            "dynamic_fps" -> restoreNested(root, gb, baseGb, "dynamic_fps_global", listOf("dynamic_fps"), scope)
+            "dynamic_fps_m" -> restoreNested(root, gb, baseGb, "dynamic_fps_global", listOf("dynamic_fps_M"), scope)
+            "thermal_table" -> restoreNested(root, gb, baseGb, "dynamic_fps_global", listOf("dynamic_fps", "dynamic_fps_M"), scope)
+            "monitor" -> restoreNested(root, gb, baseGb, "monitor", listOf("monitor_enable"), scope)
+            "analytics" -> restoreNested(root, gb, baseGb, "monitor", listOf("analytics_enable"), scope)
+            "expand_power" -> restoreNested(root, gb, baseGb, "mqs_extend_config", listOf("expand_power"), scope)
+            "l3_jank" -> restoreNested(root, gb, baseGb, "booster_debug_log_collect_config", listOf("L3_jank_debug_log_enable"), scope)
+            "background_freeze" -> restoreDirect(root, gb, baseGb, listOf("background_freeze_enable"), scope)
+            "mqs_enhance" -> restoreDirect(root, gb, baseGb, listOf("mqs_enhance_list"), scope)
+            "predownload" -> restoreDirect(root, gb, baseGb, listOf("predownload_enable"), scope)
+            "qsync" -> restoreDirect(root, gb, baseGb, listOf("qsync_enable"), scope)
+            "telemetry" -> restoreTelemetry(root, gb, baseGb)
+            else -> throw IOException("暂不支持还原：$scope")
+        }
+    }
+
+    private fun restoreGameList(root: JSONObject, baseRoot: JSONObject) : TemplateResult {
+        val baseList = baseRoot.optJSONObject("params")?.optJSONArray("game_list")
+            ?: baseRoot.optJSONArray("game_list")
+            ?: throw IOException("云端规则里没有 game_list")
+        val holder = when {
+            root.optJSONObject("params")?.has("game_list") == true -> root.getJSONObject("params")
+            root.has("game_list") -> root
+            root.optJSONObject("params") != null -> root.getJSONObject("params")
+            else -> root
+        }
+        if (holder.optJSONArray("game_list")?.toString() == baseList.toString()) {
+            return TemplateResult("游戏识别列表已与云端一致", root.toString())
+        }
+        holder.put("game_list", JSONArray(baseList.toString()))
+        return TemplateResult("已按云端规则还原游戏识别列表（${baseList.length()} 个包名）", root.toString())
+    }
+
+    private fun restoreDirect(
+        root: JSONObject,
+        gb: JSONObject,
+        baseGb: JSONObject,
+        keys: List<String>,
+        scope: String,
+    ): TemplateResult {
+        val name = scopeLabel(scope)
+        val changed = mutableListOf<String>()
+        var same = 0
+        var missing = 0
+        keys.forEach { key ->
+            if (!baseGb.has(key)) {
+                missing++
+                return@forEach
+            }
+            if (sameValue(gb.opt(key), baseGb.opt(key))) {
+                same++
+                return@forEach
+            }
+            gb.put(key, copyValue(baseGb.opt(key)))
+            changed.add(key)
+        }
+        return summarize(root, name, changed, same, missing)
+    }
+
+    private fun restoreNested(
+        root: JSONObject,
+        gb: JSONObject,
+        baseGb: JSONObject,
+        parent: String,
+        keys: List<String>,
+        scope: String,
+    ): TemplateResult {
+        val name = scopeLabel(scope)
+        val baseParent = baseGb.optJSONObject(parent) ?: throw IOException("云端规则里没有 $parent")
+        val curParent = gb.optJSONObject(parent) ?: JSONObject().also { gb.put(parent, it) }
+        val changed = mutableListOf<String>()
+        var same = 0
+        var missing = 0
+        keys.forEach { key ->
+            if (!baseParent.has(key)) {
+                missing++
+                return@forEach
+            }
+            if (sameValue(curParent.opt(key), baseParent.opt(key))) {
+                same++
+                return@forEach
+            }
+            curParent.put(key, copyValue(baseParent.opt(key)))
+            changed.add(key)
+        }
+        return summarize(root, name, changed, same, missing)
+    }
+
+    private fun restoreTelemetry(root: JSONObject, gb: JSONObject, baseGb: JSONObject): TemplateResult {
+        val name = scopeLabel("telemetry")
+        val changed = mutableListOf<String>()
+        var same = 0
+        var missing = 0
+        val baseMonitor = baseGb.optJSONObject("monitor")
+        if (baseMonitor == null) {
+            missing++
+        } else {
+            val monitor = gb.optJSONObject("monitor") ?: JSONObject().also { gb.put("monitor", it) }
+            listOf("monitor_enable", "analytics_enable").forEach { key ->
+                when {
+                    !baseMonitor.has(key) -> missing++
+                    sameValue(monitor.opt(key), baseMonitor.opt(key)) -> same++
+                    else -> {
+                        monitor.put(key, copyValue(baseMonitor.opt(key)))
+                        changed.add(key)
+                    }
+                }
+            }
+        }
+        when {
+            !baseGb.has("mqs_enhance_list") -> missing++
+            sameValue(gb.opt("mqs_enhance_list"), baseGb.opt("mqs_enhance_list")) -> same++
+            else -> {
+                gb.put("mqs_enhance_list", copyValue(baseGb.opt("mqs_enhance_list")))
+                changed.add("mqs_enhance_list")
+            }
+        }
+        val baseExtend = baseGb.optJSONObject("mqs_extend_config")
+        if (baseExtend == null || !baseExtend.has("expand_power")) {
+            missing++
+        } else {
+            val extend = gb.optJSONObject("mqs_extend_config") ?: JSONObject().also { gb.put("mqs_extend_config", it) }
+            if (sameValue(extend.opt("expand_power"), baseExtend.opt("expand_power"))) {
+                same++
+            } else {
+                extend.put("expand_power", copyValue(baseExtend.opt("expand_power")))
+                changed.add("expand_power")
+            }
+        }
+        return summarize(root, name, changed, same, missing)
+    }
+
+    private fun restoreFpsList(root: JSONObject, gb: JSONObject, baseGb: JSONObject, pkg: String): TemplateResult {
+        val name = scopeLabel("novatek")
+        val baseExt = baseGb.optJSONObject("novatek_extend_config") ?: throw IOException("云端规则里没有 novatek_extend_config")
+        val baseList = baseExt.optJSONArray("novatek_gex_fps_limit") ?: throw IOException("云端规则里没有 novatek_gex_fps_limit")
+        val ext = gb.optJSONObject("novatek_extend_config") ?: JSONObject().also { gb.put("novatek_extend_config", it) }
+        val curList = ext.optJSONArray("novatek_gex_fps_limit") ?: JSONArray()
+        val targets = splitPkgs(pkg)
+        if (targets.isEmpty()) {
+            if (curList.toString() == baseList.toString()) {
+                return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+            }
+            ext.put("novatek_gex_fps_limit", JSONArray(baseList.toString()))
+            return TemplateResult("已按云端规则还原$name（${baseList.length()} 条）", root.toString())
+        }
+        val merged = mergeByPrefix(curList, baseList, targets)
+        if (merged.result.toString() == curList.toString()) {
+            return TemplateResult("${targets.joinToString("、")} 的$name 已与云端一致", root.toString())
+        }
+        ext.put("novatek_gex_fps_limit", merged.result)
+        return TemplateResult(
+            "已按云端规则还原 ${targets.joinToString("、")} 的$name（移除 ${merged.removed} 条，写回 ${merged.added} 条）",
+            root.toString(),
+        )
+    }
+
+    private fun restoreMigt(root: JSONObject, gb: JSONObject, baseGb: JSONObject, pkg: String): TemplateResult {
+        val name = scopeLabel("migt")
+        val baseList = baseGb.optJSONArray("migt") ?: throw IOException("云端规则里没有 migt 数组")
+        val curList = gb.optJSONArray("migt") ?: JSONArray()
+        val targets = splitPkgs(pkg)
+        if (targets.isEmpty()) {
+            if (curList.toString() == baseList.toString()) {
+                return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+            }
+            gb.put("migt", JSONArray(baseList.toString()))
+            return TemplateResult("已按云端规则还原$name（${baseList.length()} 条）", root.toString())
+        }
+        val merged = mergeByPrefix(curList, baseList, targets.map { "$it;" })
+        if (merged.result.toString() == curList.toString()) {
+            return TemplateResult("${targets.joinToString("、")} 的$name 已与云端一致", root.toString())
+        }
+        gb.put("migt", merged.result)
+        return TemplateResult(
+            "已按云端规则还原 ${targets.joinToString("、")} 的$name（移除 ${merged.removed} 条，写回 ${merged.added} 条）",
+            root.toString(),
+        )
+    }
+
+    private fun restorePid(root: JSONObject, gb: JSONObject, baseGb: JSONObject, pkg: String): TemplateResult {
+        val name = scopeLabel("pid_thermal")
+        val overrides = gb.optJSONObject("booster_config")?.optJSONArray("ovrride_config")
+            ?: throw IOException("当前规则里没有 booster_config.ovrride_config")
+        val baseOverrides = baseGb.optJSONObject("booster_config")?.optJSONArray("ovrride_config")
+            ?: throw IOException("云端规则里没有 booster_config.ovrride_config")
+        val baseByName = linkedMapOf<String, JSONObject>()
+        for (i in 0 until baseOverrides.length()) {
+            val item = baseOverrides.optJSONObject(i) ?: continue
+            val gameName = item.optString("game_name").trim()
+            if (gameName.isNotEmpty()) baseByName[gameName] = item
+        }
+        val groupPkgs = pidGroupPackages(gb)
+        val targets = splitPkgs(pkg)
+        val pidKeys = listOf("PID_T", "PID_M", "PID_RE4_T", "PID_RE4_M")
+        var groups = 0
+        var fields = 0
+        var same = 0
+        var noBase = 0
+        val hitNames = mutableListOf<String>()
+        for (i in 0 until overrides.length()) {
+            val item = overrides.optJSONObject(i) ?: continue
+            val gameName = item.optString("game_name").trim()
+            if (targets.isNotEmpty() && !pidOverrideMatches(gameName, targets, groupPkgs)) continue
+            val baseItem = baseByName[gameName]
+            if (baseItem == null) {
+                if (pidKeys.any { item.has(it) }) noBase++
+                continue
+            }
+            var changedThis = false
+            pidKeys.forEach { key ->
+                if (!item.has(key) && !baseItem.has(key)) return@forEach
+                if (!baseItem.has(key)) return@forEach
+                if (sameValue(item.opt(key), baseItem.opt(key))) {
+                    same++
+                    return@forEach
+                }
+                item.put(key, copyValue(baseItem.opt(key)))
+                fields++
+                changedThis = true
+            }
+            if (changedThis) {
+                groups++
+                hitNames.add(gameName.ifBlank { "未命名策略组" })
+            }
+        }
+        if (groups == 0) {
+            if (same > 0) return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+            throw IOException(
+                if (targets.isEmpty()) "云端规则里没有可还原的$name"
+                else "云端规则里没有 ${targets.joinToString(", ")} 对应策略组的$name",
+            )
+        }
+        val who = if (targets.isEmpty()) "全部策略组" else hitNames.joinToString("、")
+        val tail = if (noBase > 0) "；$noBase 个策略组云端没有对应条目，未改动" else ""
+        return TemplateResult("已按云端规则还原 $who 的$name（共 $fields 处）$tail", root.toString())
+    }
+
+    private data class MergeResult(val result: JSONArray, val removed: Int, val added: Int)
+
+    /**
+     * 只替换命中前缀的条目，其余条目按原顺序保留。
+     * 写回的云端条目会尽量放回它在云端规则里的相对位置（跟在同一个前置条目之后），
+     * 这样即使当前规则里该条目已被整条删除，还原后顺序仍与云端一致。
+     */
+    private fun mergeByPrefix(current: JSONArray, baseline: JSONArray, prefixes: List<String>): MergeResult {
+        fun hit(value: String) = prefixes.any { value.startsWith(it) }
+
+        // 云端命中条目 + 它在云端里的前一个「非命中」条目（锚点）
+        val baseHits = mutableListOf<Pair<String, String?>>()
+        var anchor: String? = null
+        for (i in 0 until baseline.length()) {
+            val value = baseline.optString(i)
+            if (hit(value)) baseHits.add(value to anchor) else anchor = value
+        }
+
+        // 当前规则里去掉命中条目
+        val out = mutableListOf<String>()
+        var removed = 0
+        for (i in 0 until current.length()) {
+            val value = current.optString(i)
+            if (hit(value)) removed++ else out.add(value)
+        }
+
+        // 按云端顺序写回
+        baseHits.forEach { (value, itsAnchor) ->
+            val at = if (itsAnchor == null) 0 else out.indexOf(itsAnchor).let { if (it < 0) out.size else it + 1 }
+            var insertAt = at
+            while (insertAt < out.size && hit(out[insertAt])) insertAt++
+            out.add(insertAt.coerceAtMost(out.size), value)
+        }
+
+        val result = JSONArray()
+        out.forEach { result.put(it) }
+        return MergeResult(result, removed, baseHits.size)
+    }
+
+    private fun summarize(
+        root: JSONObject,
+        name: String,
+        changed: List<String>,
+        same: Int,
+        missing: Int,
+    ): TemplateResult {
+        if (changed.isEmpty()) {
+            if (same > 0) return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+            throw IOException("云端规则里没有 $name 对应字段，无法还原")
+        }
+        val tail = if (missing > 0) "；$missing 个字段云端没有，未改动" else ""
+        return TemplateResult("已按云端规则还原$name（${changed.joinToString("、")}）$tail", root.toString())
+    }
+
+    private fun splitPkgs(pkg: String): List<String> = pkg.split(',', ';', '\n', '\t', ' ')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+
+    private fun sameValue(a: Any?, b: Any?): Boolean = when {
+        a == null && b == null -> true
+        a == null || b == null -> false
+        else -> a.toString() == b.toString()
+    }
+
+    private fun copyValue(value: Any?): Any = when (value) {
+        null -> JSONObject.NULL
+        is JSONObject -> JSONObject(value.toString())
+        is JSONArray -> JSONArray(value.toString())
+        else -> value
+    }
+
+    private fun pidGroupPackages(gb: JSONObject): Map<String, List<String>> {
+        val arr = gb.optJSONArray("game_group_mapping_config") ?: return emptyMap()
+        val out = linkedMapOf<String, List<String>>()
+        for (i in 0 until arr.length()) {
+            val item = arr.optJSONObject(i) ?: continue
+            val groupName = item.optString("game_group_name").trim()
+            if (groupName.isEmpty()) continue
+            val pkgs = item.optJSONArray("package_list") ?: JSONArray()
+            out[groupName] = (0 until pkgs.length()).map { pkgs.optString(it).trim() }.filter { it.isNotEmpty() }
+        }
+        return out
+    }
+
+    private fun pidOverrideMatches(gameName: String, targets: List<String>, groupPkgs: Map<String, List<String>>): Boolean {
+        val name = gameName.trim()
+        if (name.isEmpty()) return false
+        if (targets.any { it.equals(name, ignoreCase = true) }) return true
+        return groupPkgs[name].orEmpty().any { pkg -> targets.any { it.equals(pkg, ignoreCase = true) } }
     }
 
     private fun booster(root: JSONObject): JSONObject {
