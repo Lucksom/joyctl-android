@@ -2,13 +2,13 @@ package com.hexwander.joyctl
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.content.ContentValues
-import android.content.res.ColorStateList
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.graphics.Typeface
@@ -127,11 +127,11 @@ class MainActivity : Activity() {
     private val baselineByRuleId = mutableMapOf<Long, String>()
     private val baselineByModule = mutableMapOf<String, String>()
     private var baselineFile: File? = null
-    private var baselineLabel = "未设置对照"
+    private var baselineLabel = "No baseline set"
     private var baselineRuleJson = ""
     private var loadingEditor = false
     private var dirty = false
-    private var currentLabel = "未载入"
+    private var currentLabel = "Not loaded"
     private var activeJoyoseDbPath = JOYOSE_DB_DEFAULT
     private var installedAppCache: List<InstalledApp>? = null
     @Volatile private var installedAppCacheAt = 0L
@@ -165,7 +165,6 @@ class MainActivity : Activity() {
         }
     }
 
-
     private fun buildUi() {
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -180,11 +179,11 @@ class MainActivity : Activity() {
         val titles = LinearLayout(this)
         titles.orientation = LinearLayout.VERTICAL
         titles.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        titles.addView(title("JoyCtl 云控控制台", 22))
-        titles.addView(text("云控策略 · 设备直连 · 官方协议", 12, 0xff526071.toInt()))
+        titles.addView(title("JoyCtl Cloud Console", 22))
+        titles.addView(text("Cloud Policy · Direct Device Access · Official Protocol", 12, 0xff526071.toInt()))
         header.addView(titles)
 
-        val appHelp = collapsibleHint("看懂并修改小米 Joyose 的 MCC 云控策略：帧率限制、温度降帧表、CPU 基线、监控上报与预下载。")
+        val appHelp = collapsibleHint("Inspect and modify Xiaomi Joyose MCC cloud policies: FPS locks, thermal throttling tables, CPU baselines, telemetry, and pre-downloads.")
         header.addView(infoBadge(appHelp))
         root.addView(header)
         root.addView(appHelp, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also {
@@ -233,106 +232,108 @@ class MainActivity : Activity() {
     private fun buildDevicePage(root: LinearLayout) {
         val status = panel(
             root,
-            "设备管理",
-            "安卓端直接通过 su 读取本机 Joyose 数据库，不需要 PC 侧 adb。推送前会校验 SQLite 结构，推送后会回读设备端 DB 复核。\n\n冻结云控会设置 persist.sys.sc_allow_conn=0 并停止 Joyose，防止 MCC 云端规则覆盖本地修改。\n\n「恢复官方 Joyose」会清空 Joyose 及相关系统应用数据并重新启用云控接收器，仅在异常时使用，本地修改会丢失。",
+            "Device Management",
+            "Directly read and write the local Joyose database via su without needing PC-side ADB. Validates SQLite schema before pushing and verifies device DB after pushing.\n\nFreezing cloud control sets persist.sys.sc_allow_conn=0 and stops Joyose to prevent MCC cloud rules from overwriting local changes.\n\n'Restore Official Joyose' clears data for Joyose and related system apps and re-enables cloud receivers. Use only for emergency recovery; local modifications will be lost.",
         )
         deviceStatsBox = LinearLayout(this).also {
             it.orientation = LinearLayout.VERTICAL
         }
         status.addView(deviceStatsBox)
-        statusText = text("正在检测 root 和设备信息...", 14, 0xff111827.toInt())
+        statusText = text("Checking root status and device info...", 14, 0xff111827.toInt())
         deviceStatsBox.addView(statusText)
 
         val pullPush = row()
-        pullPush.addView(rowAction("⬇️ 拉取设备配置", kind = "primary") { pullDeviceDb() })
-        pullPush.addView(rowAction("⬆️ 推送配置到设备", kind = "success") { pushDeviceDb() })
+        pullPush.addView(rowAction("⬇️ Pull Device Config", kind = "primary") { pullDeviceDb() })
+        pullPush.addView(rowAction("⬆️ Push Config to Device", kind = "success") { pushDeviceDb() })
         status.addView(pullPush)
 
         val cloudRow = row()
-        cloudRow.addView(rowAction("🧊 冻结云控") { switchCloud(false) })
-        cloudRow.addView(rowAction("☀️ 恢复云控") { switchCloud(true) })
+        cloudRow.addView(rowAction("🧊 Freeze Cloud Control") { switchCloud(false) })
+        cloudRow.addView(rowAction("☀️ Restore Cloud Control") { switchCloud(true) })
         status.addView(cloudRow)
-        status.addView(action("🧯 恢复官方 Joyose（异常时使用）", kind = "danger") { confirmRestoreOfficialJoyose() })
-        status.addView(action("🔄 刷新状态") { refreshStatus() })
+        status.addView(action("🧯 Restore Official Joyose (Emergency Recovery)", kind = "danger") { confirmRestoreOfficialJoyose() })
+        status.addView(action("🔄 Refresh Status") { refreshStatus() })
 
         val versionPanel = panel(
             root,
-            "版本与覆盖检测",
-            "读取规则 JSON 的 version / header.version，并和设备端 teg_config.db 对照，判断本地修改是否被 MCC 云控覆盖。",
+            "Version & Overwrite Detection",
+            "Reads version / header.version from rule JSON and compares it with on-device teg_config.db to check if local modifications are overwritten by MCC cloud control.",
         )
-        versionStatusText = text("载入或推送配置后，将显示 JSON version 与设备端覆盖状态。", 13, 0xff111827.toInt())
+        versionStatusText = text("After loading or pushing configs, JSON version and device overwrite status will be shown here.", 13, 0xff111827.toInt())
         versionPanel.addView(versionStatusText)
-        versionPanel.addView(action("检查设备版本/覆盖状态") { checkDeviceConfigState() })
+        versionPanel.addView(action("Check Device Version / Overwrite Status") { checkDeviceConfigState() })
     }
+
     private fun buildCloudPage(root: LinearLayout) {
         val cloud = panel(
             root,
-            "云端拉取",
-            "复刻 Joyose MCC getData 协议。会先用本机 Joyose 版本号拉取；若没有可应用规则，再按当前机型探测能搜到的最新云端配置。",
+            "Cloud Fetch",
+            "Replicates the Joyose MCC getData protocol. First pulls matching the local Joyose version; if no rules apply, it probes for compatible cloud configs by device model.",
         )
         regionSpinner = Spinner(this)
         styleSpinner(regionSpinner)
         regionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, arrayOf("CN", "INTL", "INDIA", "RUSSIA"))
-        cloud.addView(label("服务器区域"))
+        cloud.addView(label("Server Region"))
         cloud.addView(regionSpinner)
         val installed: Pair<String, String>? = null
-        deviceInput = input("设备代号，例如 myron / pudding", Build.DEVICE ?: "myron")
-        miuiInput = input("MIUI/HyperOS 版本，例如 V816", readFastProp("ro.miui.ui.version.name").ifBlank { "V816" })
+        deviceInput = input("Device codename, e.g. myron / pudding", Build.DEVICE ?: "myron")
+        miuiInput = input("MIUI/HyperOS Version, e.g. V816", readFastProp("ro.miui.ui.version.name").ifBlank { "V816" })
         appVersionInput = input("Joyose appVersion", installed?.first ?: "477")
-        localVersionInput = input("本地版本号，0 表示全量", "0")
-        cloud.addView(label("设备身份代号 (device)"))
+        localVersionInput = input("Local version (0 for full pull)", "0")
+        cloud.addView(label("Device Codename (device)"))
         cloud.addView(deviceInput)
-        cloud.addView(label("MIUI 版本"))
+        cloud.addView(label("MIUI / HyperOS Version"))
         cloud.addView(miuiInput)
-        cloud.addView(label("Joyose appVersion（默认本机版本）"))
+        cloud.addView(label("Joyose appVersion (Default: Local Version)"))
         cloud.addView(appVersionInput)
-        cloud.addView(label("本地版本号 (version)"))
+        cloud.addView(label("Local Version (version)"))
         cloud.addView(localVersionInput)
         joyoseHintText = text(
-            installed?.let { "已检测到本机 Joyose ${it.second}（appVersion=${it.first}），拉取时优先使用。" }
-                ?: "未检测到本机 Joyose 版本，将按机型探测可用的云端配置。",
+            installed?.let { "Detected local Joyose ${it.second} (appVersion=${it.first}), prioritized for fetching." }
+                ?: "No local Joyose version detected; probing available cloud configs by device model.",
             12,
             0xff3b6ab5.toInt(),
         )
         joyoseHintText.setPadding(dp(10), dp(8), dp(10), dp(8))
         joyoseHintText.background = rounded(0xfff4f8ff.toInt(), 10, 0xffcfe3ff.toInt())
         cloud.addView(joyoseHintText)
-        cloud.addView(action("🚀 从云端拉取规则", kind = "primary") { fetchCloudRules() })
+        cloud.addView(action("🚀 Fetch Rules from Cloud", kind = "primary") { fetchCloudRules() })
 
         val files = panel(
             root,
-            "本地文件",
-            "可打开 teg_config.db；也可打开单条规则 JSON。若已载入 DB，JSON 会写入当前规则编辑器；否则会生成一个临时 DB。",
+            "Local Files",
+            "Open teg_config.db or a single rule JSON. If a DB is loaded, JSON loads into the editor; otherwise, a temporary DB is generated.",
         )
         val fileRow = row()
-        fileRow.addView(rowAction("打开本地 DB/JSON 文件") { openImportPicker() })
-        fileRow.addView(rowAction("导出当前 DB") { openExportPicker() })
+        fileRow.addView(rowAction("Open Local DB/JSON File") { openImportPicker() })
+        fileRow.addView(rowAction("Export Current DB") { openExportPicker() })
         files.addView(fileRow)
-        fileText = text("当前：未载入", 12, 0xff526071.toInt())
+        fileText = text("Current: Not loaded", 12, 0xff526071.toInt())
         files.addView(fileText)
     }
+
     private fun buildRulesPage(root: LinearLayout) {
         val rulesPanel = panel(
             root,
-            "规则列表",
-            "每条规则一张卡片。蓝色边框是当前正在编辑的规则；点卡片即可切换。booster_config 管游戏加速，common_config 管通用配置。",
+            "Rule List",
+            "Each rule is displayed as a card. Blue border indicates the currently edited rule; tap to switch. booster_config manages game boost; common_config manages general settings.",
         )
-        ruleListHint = text("尚未载入规则。请先到「设备」拉取配置，或到「云端」拉取规则。", 12, 0xff64748b.toInt())
+        ruleListHint = text("No rules loaded yet. Please pull config from 'Device' or fetch rules from 'Cloud'.", 12, 0xff64748b.toInt())
         rulesPanel.addView(ruleListHint)
         ruleListBox = LinearLayout(this).also { it.orientation = LinearLayout.VERTICAL }
         rulesPanel.addView(ruleListBox)
 
         val editorPanel = panel(
             root,
-            "规则编辑",
-            "编辑区支持纵向/横向滑动查看长 JSON。保存后仍需到「设备」页点击“推送配置到设备”才会写入 Joyose。",
+            "Rule Editor",
+            "Scroll vertically/horizontally to inspect long JSON. After saving, go to the 'Device' tab and click 'Push Config to Device' to apply.",
         )
         val editorActions = row()
-        editorActions.addView(rowAction("📄 原始 JSON") { toast("安卓版当前使用原始 JSON 编辑") })
-        editorActions.addView(rowAction("🔄 重载") { reloadCurrentRule() })
+        editorActions.addView(rowAction("📄 Raw JSON") { toast("The Android version currently uses raw JSON editing") })
+        editorActions.addView(rowAction("🔄 Reload") { reloadCurrentRule() })
         editorPanel.addView(editorActions)
-        editorPanel.addView(action("💾 保存修改") { saveCurrentRuleFromUi(showToast = true) })
-        dirtyText = text("未载入规则", 12, 0xff526071.toInt())
+        editorPanel.addView(action("💾 Save Changes") { saveCurrentRuleFromUi(showToast = true) })
+        dirtyText = text("No rules loaded", 12, 0xff526071.toInt())
         editorPanel.addView(dirtyText)
         editor = EditText(this)
         editor.typeface = Typeface.MONOSPACE
@@ -368,32 +369,32 @@ class MainActivity : Activity() {
 
         val templates = panel(
             root,
-            "一键策略模板",
-            "模板只改当前载入的规则 JSON。点「选择游戏」可多选本机应用，选完后点「修改」才会写入规则。「全部游戏」只改 Joyose 配置里已有的游戏条目，不会给本机其它 App 新增配置。每个模板旁的「还原」会按当前机型云端规则把这一项恢复默认，其余内容不动。改完后仍需保存并推送到设备。",
+            "One-Click Policy Templates",
+            "Templates only modify the currently loaded rule JSON. Tap 'Select Games' to multi-select installed apps, then tap 'Apply' to write into the rule. 'All Games' only modifies entries existing in the Joyose config. 'Restore' resets the item to cloud defaults without touching other settings. Save and push after modifying.",
         )
-        packageInput = input("多个包名用逗号分隔；留空 = Joyose 配置里的全部游戏", "")
-        templates.addView(label("选择目标游戏（仅作用于 Joyose 配置里已有的游戏条目）"))
+        packageInput = input("Comma-separated package names; leave blank for all games in Joyose config", "")
+        templates.addView(label("Target Games (Only applies to games existing in Joyose config)"))
         templates.addView(packageInput)
         templates.addView(
             templateCard(
-                "解锁指定游戏的帧率锁",
-                "从 Joyose 帧率锁名单中移除所选游戏；「全部游戏」会清空该名单，不会给其它 App 加条目",
-                "🎯 选择游戏",
+                "Unlock FPS Lock for Selected Games",
+                "Removes selected games from Joyose FPS limit list; 'All Games' clears the list without adding entries for other apps",
+                "🎯 Select Games",
                 restoreScope = "novatek",
                 restoreUsesPackages = true,
             ) { pickGameThenApply(TemplateId.UNLOCK_FPS) },
         )
-        pidTempInput = input("例如 47", "47")
+        pidTempInput = input("e.g. 47", "47")
         pidTempInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
         val pidTempBox = LinearLayout(this)
         pidTempBox.orientation = LinearLayout.VERTICAL
-        pidTempBox.addView(label("策略组温控阈值（°C）"))
+        pidTempBox.addView(label("Policy Group Thermal Threshold (°C)"))
         pidTempBox.addView(pidTempInput)
         templates.addView(
             templateCard(
-                "放宽所有游戏的温控",
-                "多选游戏后，把对应策略组的 PID 温控阈值改成你填的温度。App 会转成 Joyose 可识别的 start:end 格式，例如 47 → 47:48，并保留原帧率/PID 参数。点「全部游戏」只改配置里已有 PID 的策略组。",
-                "🎯 选择游戏",
+                "Relax Thermal Throttling for Games",
+                "Updates PID thermal thresholds for selected game policy groups to your specified temperature. Converted to Joyose start:end format (e.g. 47 → 47:48) while preserving FPS/PID params. 'All Games' modifies only existing PID policy groups.",
+                "🎯 Select Games",
                 extra = pidTempBox,
                 restoreScope = "pid_thermal",
                 restoreUsesPackages = true,
@@ -401,108 +402,108 @@ class MainActivity : Activity() {
         )
         templates.addView(
             templateCard(
-                "提升指定游戏 CPU 大核基线",
-                "只提升 Joyose migt 名单里已有的所选游戏；「全部游戏」改该名单中的全部条目",
-                "🎯 选择游戏",
+                "Raise CPU Prime Core Baseline for Selected Games",
+                "Raises frequency for selected games in Joyose migt list; 'All Games' modifies all entries in the list",
+                "🎯 Select Games",
                 restoreScope = "migt",
                 restoreUsesPackages = true,
             ) { pickGameThenApply(TemplateId.RAISE_MIGT) },
         )
         templates.addView(
             templateCard(
-                "提升所有游戏大核基线",
-                "所有游戏大核基线统一提到 1400MHz",
-                "应用",
+                "Raise Prime Core Baseline for All Games",
+                "Sets prime core baseline to 1400MHz for all games",
+                "Apply",
                 restoreScope = "migt",
             ) { applyTemplate(TemplateId.RAISE_MIGT_ALL) },
         )
         templates.addView(
             templateCard(
-                "移除全局温度降帧表",
-                "清空温度降帧段，温度不再触发全局降帧",
-                "应用",
+                "Remove Global Thermal Throttling Table",
+                "Clears dynamic FPS thermal table; temperature will no longer trigger global throttling",
+                "Apply",
                 restoreScope = "thermal_table",
             ) { applyTemplate(TemplateId.CLEAR_THERMAL) },
         )
         templates.addView(
             templateCard(
-                "关闭后台冻结",
-                "游戏切后台不绑小核（更耗电但秒恢复）",
-                "应用",
+                "Disable Background Freeze",
+                "Keeps background games unpinned from small cores (higher battery drain, instant resume)",
+                "Apply",
                 restoreScope = "background_freeze",
             ) { applyTemplate(TemplateId.DISABLE_BACKGROUND_FREEZE) },
         )
         templates.addView(
             templateCard(
-                "关闭监控与质量上报",
-                "关闭 monitor 监控/分析上报、清空 MQS 监控名单、关闭扩展功耗采集",
-                "应用",
+                "Disable Monitoring & Telemetry",
+                "Disables monitor/analytics reporting, clears MQS watch list, and turns off extended power collection",
+                "Apply",
                 restoreScope = "telemetry",
             ) { applyTemplate(TemplateId.DISABLE_TELEMETRY) },
         )
         templates.addView(
             templateCard(
-                "关闭资源预下载",
-                "关闭游戏资源预下载（省流量/存储）",
-                "应用",
+                "Disable Resource Pre-download",
+                "Disables game asset pre-downloads (saves data and storage)",
+                "Apply",
                 restoreScope = "predownload",
             ) { applyTemplate(TemplateId.DISABLE_PREDOWNLOAD) },
         )
         templates.addView(
             templateCard(
-                "禁用 L3 卡顿日志采集",
-                "强制关闭卡顿 trace 采集（隐私+省 CPU/流量）",
-                "应用",
+                "Disable L3 Jank Log Collection",
+                "Forces off jank trace logging (improves privacy, saves CPU/data)",
+                "Apply",
                 restoreScope = "l3_jank",
             ) { applyTemplate(TemplateId.DISABLE_L3_LOG) },
         )
         templates.addView(
             templateCard(
-                "开启 QSync 显示同步（实验性）",
-                "开启高通 QSync 显示同步（厂商默认关闭，未实测兼容性）",
-                "应用",
+                "Enable QSync Display Sync (Experimental)",
+                "Enables Qualcomm QSync display sync (disabled by OEM by default, compatibility unverified)",
+                "Apply",
                 restoreScope = "qsync",
             ) { applyTemplate(TemplateId.ENABLE_QSYNC) },
         )
         templates.addView(
             templateCard(
-                "恢复原始配置",
-                "撤销所有修改，恢复成载入时的原始内容；旁边的「还原」按云端规则整条覆盖当前规则",
-                "应用",
+                "Reset to Original Config",
+                "Reverts all changes to the content at load time; 'Restore' overwrites the rule with cloud defaults",
+                "Apply",
                 restoreScope = Restores.SCOPE_ALL,
             ) { applyTemplate(TemplateId.RESET) },
         )
-        val stats = panel(root, "规则统计")
-        ruleStatsText = text("未载入规则", 13, 0xff111827.toInt())
+        val stats = panel(root, "Rule Statistics")
+        ruleStatsText = text("No rules loaded", 13, 0xff111827.toInt())
         stats.addView(ruleStatsText)
 
         val features = panel(
             root,
-            "功能识别",
-            "始终对照当前机型的云端规则。橙色「已改」表示当前值已偏离云端默认，灰色「未改」表示这项还没动过。每项旁边的「还原」只会把这一项恢复成云端默认值，规则里其余内容不动。",
+            "Feature Detection",
+            "Always compared against cloud defaults for current device. Orange 'Modified' indicates deviation from cloud default; gray 'Unmodified' indicates untouched. 'Restore' resets only that specific item.",
         )
         featureSummaryBox = LinearLayout(this).also { it.orientation = LinearLayout.VERTICAL }
         features.addView(featureSummaryBox)
-            renderFeatureSummary(null)
+        renderFeatureSummary(null)
     }
 
     private fun buildLogPage(root: LinearLayout) {
         val logPanel = panel(
             root,
-            "日志",
-            "记录云端拉取、规则模板、包名改动和失败原因。最新操作在最上方。",
+            "Logs",
+            "Logs cloud fetches, template executions, package changes, and error reasons. Newest on top.",
         )
         val toolbar = row()
-        toolbar.addView(rowAction("复制全部") { copyAllLogs() })
-        toolbar.addView(rowAction("清空") { clearLogs() })
+        toolbar.addView(rowAction("Copy All") { copyAllLogs() })
+        toolbar.addView(rowAction("Clear") { clearLogs() })
         logPanel.addView(toolbar)
         logContainer = LinearLayout(this).also {
             it.orientation = LinearLayout.VERTICAL
         }
         logPanel.addView(logContainer)
-        logText = text("暂无日志", 12, 0xff94a3b8.toInt())
+        logText = text("No logs yet", 12, 0xff94a3b8.toInt())
         logContainer.addView(logText)
-        appendLog("info", "日志已就绪", "后续操作会按时间显示在这里，失败步骤会标红。")
+        appendLog("info", "Log initialized", "Subsequent actions will appear here in chronological order; failed steps will be highlighted in red.")
     }
 
     private fun buildBottomNav(): LinearLayout {
@@ -517,10 +518,10 @@ class MainActivity : Activity() {
         nav.orientation = LinearLayout.HORIZONTAL
         nav.setPadding(0, dp(4), 0, dp(6))
         listOf(
-            Triple("📱", "设备", 0),
-            Triple("☁️", "云端", 1),
-            Triple("🧩", "规则", 2),
-            Triple("📋", "日志", 3),
+            Triple("📱", "Device", 0),
+            Triple("☁️", "Cloud", 1),
+            Triple("🧩", "Rules", 2),
+            Triple("📋", "Logs", 3),
         ).forEach { (icon, label, index) ->
             nav.addView(tabItem(icon, label, index))
         }
@@ -561,9 +562,8 @@ class MainActivity : Activity() {
         tabLabels.forEachIndexed { i, view -> view.setTextColor(if (i == index) active else idle) }
     }
 
-
     private fun refreshStatus() {
-        runTask("刷新状态") { refreshStatusNow() }
+        runTask("Refresh Status") { refreshStatusNow() }
     }
 
     private fun refreshStatusNow() {
@@ -584,12 +584,13 @@ class MainActivity : Activity() {
             }
             if (::joyoseHintText.isInitialized) {
                 joyoseHintText.text = joyose?.let {
-                    "已检测到本机 Joyose ${it.second}（appVersion=${it.first}），拉取时优先使用。"
-                } ?: "未检测到本机 Joyose 版本，将按机型探测可用的云端配置。"
+                    "Detected local Joyose ${it.second} (appVersion=${it.first}), prioritized for fetching."
+                } ?: "No local Joyose version detected; probing available cloud configs by device model."
             }
         }
         appendLog("Root=${if (rooted) "yes" else "no"}, sc_allow_conn=$scRaw, joyose=${joyose?.second ?: "n/a"}")
     }
+
     private fun renderDeviceStats(
         model: String,
         device: String,
@@ -601,12 +602,12 @@ class MainActivity : Activity() {
     ) {
         if (!::deviceStatsBox.isInitialized) return
         deviceStatsBox.removeAllViews()
-        deviceStatsBox.addView(statRow("机型", model))
-        deviceStatsBox.addView(statRow("设备代号", device))
-        deviceStatsBox.addView(statRow("系统", system))
-        deviceStatsBox.addView(statRow("Root 权限", if (rooted) "已获取" else "未获取", if (rooted) "root" else "noroot"))
-        deviceStatsBox.addView(statRow("云控下发", if (scAllowed) "允许" else if (scRaw == "unknown") "未知" else "已冻结", if (scAllowed) "active" else "frozen"))
-        deviceStatsBox.addView(statRow("Joyose", joyose?.let { "${it.second} (${it.first})" } ?: "未检测到"))
+        deviceStatsBox.addView(statRow("Model", model))
+        deviceStatsBox.addView(statRow("Codename", device))
+        deviceStatsBox.addView(statRow("OS", system))
+        deviceStatsBox.addView(statRow("Root Status", if (rooted) "Granted" else "Not Granted", if (rooted) "root" else "noroot"))
+        deviceStatsBox.addView(statRow("Cloud Control", if (scAllowed) "Allowed" else if (scRaw == "unknown") "Unknown" else "Frozen", if (scAllowed) "active" else "frozen"))
+        deviceStatsBox.addView(statRow("Joyose", joyose?.let { "${it.second} (${it.first})" } ?: "Not detected"))
         statusText.text = ""
         statusText.visibility = View.GONE
     }
@@ -637,24 +638,25 @@ class MainActivity : Activity() {
         }
         return row
     }
+
     private fun pullDeviceDb() {
-        runTask("拉取设备配置") {
-            if (!Shell.isRooted()) throw IOException("需要 root 权限")
+        runTask("Pull Device Config") {
+            if (!Shell.isRooted()) throw IOException("Root permission required")
             val dbPath = resolveJoyoseDbPath(requireExistingFile = true)
             activeJoyoseDbPath = dbPath
             copyDeviceDbTo(currentDbFile, dbPath)
             backupCurrentDb("device-pull")
-            loadDbFromFile("设备配置")
-            refreshCloudBaselineForCurrentDb("设备配置")
+            loadDbFromFile("Device Config")
+            refreshCloudBaselineForCurrentDb("Device Config")
             updateVersionStatus(JoyoseDb.versionReport(currentDbFile))
-            appendLog("已从 $dbPath 拉取 ${currentDbFile.length()} bytes")
+            appendLog("Pulled ${currentDbFile.length()} bytes from $dbPath")
         }
     }
 
     private fun pushDeviceDb() {
         if (!saveCurrentRuleFromUi(showToast = false)) return
-        runTask("推送配置") {
-            if (!Shell.isRooted()) throw IOException("需要 root 权限")
+        runTask("Push Config") {
+            if (!Shell.isRooted()) throw IOException("Root permission required")
             JoyoseDb.validate(currentDbFile)
             val dbPath = resolveJoyoseDbPath(requireExistingFile = false)
             activeJoyoseDbPath = dbPath
@@ -665,34 +667,34 @@ class MainActivity : Activity() {
             Shell.root("cat $src > ${q(dbPath)} && chmod 660 ${q(dbPath)} && (chown system:system ${q(dbPath)} 2>/dev/null || true)")
             val remoteSize = Shell.root("wc -c < ${q(dbPath)}").trim().toLongOrNull()
             if (remoteSize != currentDbFile.length()) {
-                throw IOException("数据库大小校验失败：本地 ${currentDbFile.length()} / 设备 $remoteSize")
+                throw IOException("Database size verification failed: Local ${currentDbFile.length()} / Device $remoteSize")
             }
             val verifyFile = File(filesDir, "teg_config_device_verify.db")
             copyDeviceDbTo(verifyFile, dbPath)
             val comparison = JoyoseDb.compareFiles(currentDbFile, verifyFile)
             updateVersionStatus(comparison.report)
             if (!comparison.sameContent) {
-                throw IOException("推送后内容校验失败，设备端 DB 与当前 DB 不一致")
+                throw IOException("Post-push content verification failed: Device DB does not match current DB")
             }
             Shell.root("am force-stop com.xiaomi.joyose")
-            appendLog("已推送并校验 $remoteSize bytes；目标：$dbPath")
+            appendLog("Pushed and verified $remoteSize bytes; Target: $dbPath")
         }
     }
 
     private fun confirmRestoreOfficialJoyose() {
         AlertDialog.Builder(this)
-            .setTitle("恢复官方 Joyose")
+            .setTitle("Restore Official Joyose")
             .setMessage(
-                "这会清空 Joyose、HTML 查看器、系统守护、电量和安全中心的应用数据，并重新启用云控接收器、发送开机广播。\n\n本地已修改的云控配置会丢失，仅在 Joyose 异常时使用。"
+                "This will clear app data for Joyose, HTML Viewer, System Daemon, Powerkeeper, and Security Center, re-enable the cloud server receiver, and trigger a boot completed broadcast.\n\nLocally modified cloud configs will be lost. Use only for emergency recovery."
             )
-            .setPositiveButton("继续恢复") { _, _ -> restoreOfficialJoyose() }
-            .setNegativeButton("取消", null)
+            .setPositiveButton("Proceed") { _, _ -> restoreOfficialJoyose() }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
     private fun restoreOfficialJoyose() {
-        runTask("恢复官方 Joyose") {
-            if (!Shell.isRooted()) throw IOException("需要 root 权限")
+        runTask("Restore Official Joyose") {
+            if (!Shell.isRooted()) throw IOException("Root permission required")
             val commands = listOf(
                 "pm clear com.xiaomi.joyose",
                 "pm clear com.android.htmlviewer",
@@ -719,24 +721,24 @@ class MainActivity : Activity() {
                 } else {
                     "$cmd → exit ${result.code}: ${out.take(180)}"
                 }
-                details.append(if (ok) "• $line\n" else "• 失败 $line\n")
-                appendLog(if (ok) "info" else "warn", if (ok) "已执行 $cmd" else "执行失败 $cmd", out.take(500))
+                details.append(if (ok) "• $line\n" else "• Failed $line\n")
+                appendLog(if (ok) "info" else "warn", if (ok) "Executed: $cmd" else "Execution failed: $cmd", out.take(500))
             }
             Shell.run("setprop persist.sys.sc_allow_conn 1", root = true, timeoutSeconds = 8)
             propCache.remove("persist.sys.sc_allow_conn")
             joyoseCache = null
             if (failed > 0) {
-                appendLog("warn", "官方 Joyose 恢复完成，但有 $failed 步未成功", details.toString().trim())
+                appendLog("warn", "Official Joyose restore completed, but $failed steps failed", details.toString().trim())
             } else {
-                appendLog("ok", "官方 Joyose 已恢复", details.toString().trim())
+                appendLog("ok", "Official Joyose restored successfully", details.toString().trim())
             }
             refreshStatusNow()
         }
     }
 
     private fun switchCloud(enabled: Boolean) {
-        runTask(if (enabled) "恢复云控" else "冻结云控") {
-            if (!Shell.isRooted()) throw IOException("需要 root 权限")
+        runTask(if (enabled) "Restore Cloud Control" else "Freeze Cloud Control") {
+            if (!Shell.isRooted()) throw IOException("Root permission required")
             val value = if (enabled) "1" else "0"
             Shell.root("setprop persist.sys.sc_allow_conn $value && am force-stop com.xiaomi.joyose")
             propCache.remove("persist.sys.sc_allow_conn")
@@ -752,7 +754,7 @@ class MainActivity : Activity() {
         val miuiVersion = miuiInput.text.toString().trim().ifBlank { "V816" }
         val typedAppVersion = appVersionInput.text.toString().trim()
         val localVersion = localVersionInput.text.toString().trim().ifBlank { "0" }
-        runTask("云端拉取") {
+        runTask("Cloud Fetch") {
             val identity = readDeviceIdentityOrNull()
             val installed = detectInstalledJoyose()
             val preferred = typedAppVersion.ifBlank { installed?.first.orEmpty() }
@@ -764,7 +766,7 @@ class MainActivity : Activity() {
             var usedVersion: String? = null
             var result: CloudFetchResult? = null
             for (ver in attempts) {
-                appendLog("尝试 Joyose appVersion=$ver${if (installed?.first == ver) "（本机）" else ""}")
+                appendLog("Trying Joyose appVersion=$ver${if (installed?.first == ver) " (Local)" else ""}")
                 try {
                     val fetched = MccClient.fetch(
                         CloudParams(region, device, miuiVersion, ver, localVersion, identity, versionNameFor(ver)),
@@ -774,33 +776,33 @@ class MainActivity : Activity() {
                         usedVersion = ver
                         break
                     }
-                    lastError = "appVersion=$ver 返回 maxVersion=${fetched.maxVersion}，没有 status=1 的可应用规则"
+                    lastError = "appVersion=$ver returned maxVersion=${fetched.maxVersion} with no status=1 applicable rules"
                     appendLog(lastError!!)
                 } catch (e: Exception) {
-                    lastError = "appVersion=$ver 失败：${e.message}"
+                    lastError = "appVersion=$ver failed: ${e.message}"
                     appendLog(lastError!!)
                 }
             }
             if (result == null) {
-                appendLog("本机版本未拉到可用规则，开始按机型 $device 探测最新配置")
+                appendLog("No applicable rules found for local version. Probing latest configs for device $device")
                 val probe = probeLatestCloudConfig(region, device, miuiVersion, localVersion, identity)
                 result = probe.first
                 usedVersion = probe.second
             }
-            val fetched = result ?: throw IOException(lastError ?: "没有可载入的云端规则")
-            if (fetched.applyRules.isEmpty()) throw IOException("没有可载入的云端规则")
+            val fetched = result ?: throw IOException(lastError ?: "No applicable cloud rules found")
+            if (fetched.applyRules.isEmpty()) throw IOException("No applicable cloud rules found")
             ui.post { if (usedVersion != null) appVersionInput.setText(usedVersion) }
             JoyoseDb.buildFromCloudRules(currentDbFile, fetched.applyRules)
-            snapshotBaselineFromCurrentDb("云端未修改配置")
-            loadDbFromFile("云端规则 maxVersion=${fetched.maxVersion}")
+            snapshotBaselineFromCurrentDb("Cloud Unmodified Config")
+            loadDbFromFile("Cloud Rules maxVersion=${fetched.maxVersion}")
             updateVersionStatus(JoyoseDb.versionReport(currentDbFile))
-            val modules = fetched.applyRules.groupBy { it.moduleKey.ifBlank { "(空)" } }
+            val modules = fetched.applyRules.groupBy { it.moduleKey.ifBlank { "(Empty)" } }
             val moduleText = modules.entries.joinToString("\n") { (k, v) -> "• $k ×${v.size}" }
-            val skippedText = if (fetched.skipped.isEmpty()) "无跳过规则" else fetched.skipped.joinToString("\n") { "• $it" }
+            val skippedText = if (fetched.skipped.isEmpty()) "No skipped rules" else fetched.skipped.joinToString("\n") { "• $it" }
             appendLog(
                 "ok",
-                "云端拉取成功：${fetched.applyRules.size} 条可应用规则",
-                "maxVersion=${fetched.maxVersion}，appVersion=$usedVersion\n$moduleText\n跳过：\n$skippedText",
+                "Cloud fetch successful: ${fetched.applyRules.size} applicable rules",
+                "maxVersion=${fetched.maxVersion}, appVersion=$usedVersion\n$moduleText\nSkipped:\n$skippedText",
             )
         }
     }
@@ -824,7 +826,7 @@ class MainActivity : Activity() {
                 )
                 val booster = fetched.applyRules.count { it.moduleKey.contains("booster", ignoreCase = true) }
                 val common = fetched.applyRules.count { it.moduleKey.contains("common", ignoreCase = true) }
-                appendLog("探测 $device appVersion=$ver → rules=${fetched.applyRules.size} booster=$booster common=$common maxVersion=${fetched.maxVersion}")
+                appendLog("Probing $device appVersion=$ver → rules=${fetched.applyRules.size} booster=$booster common=$common maxVersion=${fetched.maxVersion}")
                 if (fetched.applyRules.isEmpty()) continue
                 val currentBest = best
                 if (currentBest == null || fetched.applyRules.size > currentBest.first.applyRules.size ||
@@ -834,10 +836,10 @@ class MainActivity : Activity() {
                 }
             } catch (e: Exception) {
                 lastError = e.message
-                appendLog("探测 $device appVersion=$ver 失败：${e.message}")
+                appendLog("Probing $device appVersion=$ver failed: ${e.message}")
             }
         }
-        return best ?: throw IOException("当前机型 $device 未探测到可用云端配置${lastError?.let { "：$it" } ?: ""}")
+        return best ?: throw IOException("No available cloud config found for device $device${lastError?.let { ": $it" } ?: ""}")
     }
 
     private fun detectInstalledJoyose(): Pair<String, String>? {
@@ -859,6 +861,7 @@ class MainActivity : Activity() {
         }
         return null
     }
+
     private fun versionNameFor(appVersion: String): String {
         val digits = appVersion.filter { it.isDigit() }
         return when {
@@ -872,19 +875,20 @@ class MainActivity : Activity() {
             else -> "2.4.77"
         }
     }
+
     private fun importDb(uri: Uri) {
-        runTask("导入本地文件") {
+        runTask("Import Local File") {
             val imported = File(filesDir, "joyctl_import.tmp")
             contentResolver.openInputStream(uri).use { input ->
-                if (input == null) throw IOException("无法打开选择的文件")
+                if (input == null) throw IOException("Unable to open selected file")
                 imported.outputStream().use { output -> input.copyTo(output) }
             }
             if (JoyoseDb.isSQLite(imported)) {
                 imported.copyTo(currentDbFile, overwrite = true)
                 JoyoseDb.validate(currentDbFile)
                 backupCurrentDb("import")
-                loadDbFromFile("导入文件")
-                refreshCloudBaselineForCurrentDb("导入文件")
+                loadDbFromFile("Imported File")
+                refreshCloudBaselineForCurrentDb("Imported File")
                 updateVersionStatus(JoyoseDb.versionReport(currentDbFile))
                 return@runTask
             }
@@ -898,16 +902,16 @@ class MainActivity : Activity() {
                     dirty = true
                     updateDirtyText()
                     updateRuleStats(normalized)
-                    fileText.text = "当前：JSON 已载入到 ${activeRule?.module ?: "当前规则"}，保存后写入 DB"
+                    fileText.text = "Current: JSON loaded into ${activeRule?.module ?: "current rule"}, save to write to DB"
                 }
-                updateVersionStatus("JSON 已载入编辑器，version=${JoyoseDb.extractJsonVersion(normalized)}。\n点击“保存修改”后写入当前 DB，再推送到设备。")
-                appendLog("已载入 JSON 规则 version=${JoyoseDb.extractJsonVersion(normalized)}")
-                refreshCloudBaselineForCurrentDb("导入 JSON 到当前规则")
+                updateVersionStatus("JSON loaded into editor, version=${JoyoseDb.extractJsonVersion(normalized)}.\nTap 'Save Changes' to write to DB, then push to device.")
+                appendLog("Loaded JSON rule version=${JoyoseDb.extractJsonVersion(normalized)}")
+                refreshCloudBaselineForCurrentDb("Import JSON to Current Rule")
             } else {
                 JoyoseDb.buildFromJsonRule(currentDbFile, normalized)
                 backupCurrentDb("json-import")
-                loadDbFromFile("JSON 规则文件")
-                refreshCloudBaselineForCurrentDb("JSON 规则文件")
+                loadDbFromFile("JSON Rule File")
+                refreshCloudBaselineForCurrentDb("JSON Rule File")
                 updateVersionStatus(JoyoseDb.versionReport(currentDbFile))
             }
         }
@@ -915,13 +919,13 @@ class MainActivity : Activity() {
 
     private fun exportDb(uri: Uri) {
         if (!saveCurrentRuleFromUi(showToast = false)) return
-        runTask("导出 DB") {
-            if (!currentDbFile.exists()) throw IOException("当前没有 DB")
+        runTask("Export DB") {
+            if (!currentDbFile.exists()) throw IOException("No DB currently loaded")
             contentResolver.openOutputStream(uri).use { output ->
-                if (output == null) throw IOException("无法写入导出文件")
+                if (output == null) throw IOException("Unable to write export file")
                 currentDbFile.inputStream().use { input -> input.copyTo(output) }
             }
-            appendLog("已导出 ${currentDbFile.length()} bytes")
+            appendLog("Exported ${currentDbFile.length()} bytes")
         }
     }
 
@@ -934,7 +938,7 @@ class MainActivity : Activity() {
 
     private fun openExportPicker() {
         if (!currentDbFile.exists()) {
-            toast("当前没有 DB")
+            toast("No DB currently loaded")
             return
         }
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -945,16 +949,16 @@ class MainActivity : Activity() {
     }
 
     private fun checkDeviceConfigState() {
-        runTask("检查设备版本/覆盖状态") {
-            if (!currentDbFile.exists()) throw IOException("当前没有可比较的 DB，请先拉取、云端生成或导入配置")
-            if (!Shell.isRooted()) throw IOException("需要 root 权限")
-            if (dirty) appendLog("当前规则有未保存修改，版本检测将以已保存 DB 为准")
+        runTask("Check Device Version / Overwrite Status") {
+            if (!currentDbFile.exists()) throw IOException("No DB available for comparison. Pull, generate from cloud, or import config first")
+            if (!Shell.isRooted()) throw IOException("Root permission required")
+            if (dirty) appendLog("Current rule has unsaved changes; version check uses saved DB")
             val dbPath = resolveJoyoseDbPath(requireExistingFile = true)
             val deviceFile = File(filesDir, "teg_config_device_check.db")
             copyDeviceDbTo(deviceFile, dbPath)
             val comparison = JoyoseDb.compareFiles(currentDbFile, deviceFile)
             updateVersionStatus(comparison.report)
-            appendLog(if (comparison.sameContent) "设备端配置与当前 DB 一致" else "设备端配置与当前 DB 不一致")
+            appendLog(if (comparison.sameContent) "Device config matches current DB" else "Device config differs from current DB")
         }
     }
 
@@ -976,15 +980,15 @@ class MainActivity : Activity() {
             baselineFile = file
             baselineLabel = label
         }.onFailure {
-            baselineLabel = "对照读取失败"
-            appendLog("对照配置读取失败：${it.message}")
+            baselineLabel = "Baseline read failed"
+            appendLog("Baseline config read failed: ${it.message}")
         }
     }
 
     private fun applyCloudBaseline(rules: List<CloudRule>, appVersion: String) {
         val dest = File(filesDir, "teg_config_baseline.db")
         JoyoseDb.buildFromCloudRules(dest, rules)
-        loadBaselineMap(dest, "云端未修改配置 appVersion=$appVersion")
+        loadBaselineMap(dest, "Cloud Unmodified Config appVersion=$appVersion")
         ui.post {
             if (::editor.isInitialized) updateRuleStats(editor.text.toString())
         }
@@ -1014,7 +1018,7 @@ class MainActivity : Activity() {
         val identity = readDeviceIdentityOrNull()
         var lastError: String? = null
         for (ver in preferredJoyoseVersions()) {
-            appendLog("对照云端：尝试 Joyose appVersion=$ver")
+            appendLog("Baseline cloud: Trying Joyose appVersion=$ver")
             try {
                 val fetched = MccClient.fetch(
                     CloudParams(region, device, miuiVersion, ver, localVersion, identity, versionNameFor(ver)),
@@ -1023,14 +1027,14 @@ class MainActivity : Activity() {
                     ui.post { if (::appVersionInput.isInitialized) appVersionInput.setText(ver) }
                     return fetched to ver
                 }
-                lastError = "appVersion=$ver 没有可应用规则"
+                lastError = "appVersion=$ver has no applicable rules"
                 appendLog(lastError!!)
             } catch (e: Exception) {
-                lastError = "appVersion=$ver 失败：${e.message}"
+                lastError = "appVersion=$ver failed: ${e.message}"
                 appendLog(lastError!!)
             }
         }
-        appendLog("对照云端：本机版本未拉到可用规则，开始按机型 $device 探测")
+        appendLog("Baseline cloud: Local version yielded no rules, probing for model $device")
         return probeLatestCloudConfig(region, device, miuiVersion, localVersion, identity)
     }
 
@@ -1040,30 +1044,30 @@ class MainActivity : Activity() {
             applyCloudBaseline(fetched.applyRules, ver)
             appendLog(
                 "ok",
-                "已用云端未修改配置做对照",
-                "来源：$source，appVersion=$ver，规则 ${fetched.applyRules.size} 条，maxVersion=${fetched.maxVersion}",
+                "Using cloud unmodified config as baseline",
+                "Source: $source, appVersion=$ver, rules: ${fetched.applyRules.size}, maxVersion=${fetched.maxVersion}",
             )
         } catch (e: Exception) {
-            appendLog("warn", "云端对照拉取失败，暂时对照当前载入内容", e.message ?: "")
+            appendLog("warn", "Cloud baseline fetch failed; temporarily comparing with current content", e.message ?: "")
             if (baselineByRuleId.isEmpty() && currentDbFile.exists()) {
-                snapshotBaselineFromCurrentDb("载入时的原始配置（云端对照失败）")
+                snapshotBaselineFromCurrentDb("Original config at load time (Cloud baseline failed)")
             }
         }
     }
 
     private fun captureBaselineFromCurrentDb(label: String) {
         when {
-            label.startsWith("云端规则") -> {
+            label.startsWith("Cloud Rules") -> {
                 val existing = baselineFile
-                if (existing != null && existing.exists() && baselineLabel.startsWith("云端未修改配置") && baselineByRuleId.isNotEmpty()) {
+                if (existing != null && existing.exists() && baselineLabel.startsWith("Cloud Unmodified Config") && baselineByRuleId.isNotEmpty()) {
                     return
                 }
-                snapshotBaselineFromCurrentDb("云端未修改配置")
+                snapshotBaselineFromCurrentDb("Cloud Unmodified Config")
             }
-            label == "设备配置" || label == "导入文件" || label == "JSON 规则文件" -> {
-                if (baselineByRuleId.isEmpty()) snapshotBaselineFromCurrentDb("载入时的原始配置")
+            label == "Device Config" || label == "Imported File" || label == "JSON Rule File" -> {
+                if (baselineByRuleId.isEmpty()) snapshotBaselineFromCurrentDb("Original config at load time")
             }
-            else -> snapshotBaselineFromCurrentDb("载入时的原始配置")
+            else -> snapshotBaselineFromCurrentDb("Original config at load time")
         }
     }
 
@@ -1078,7 +1082,7 @@ class MainActivity : Activity() {
             rules.clear()
             originalByRuleId.clear()
             rules.addAll(loaded)
-            fileText.text = "当前：$label，${currentDbFile.length()} bytes，${loaded.size} 条规则"
+            fileText.text = "Current: $label, ${currentDbFile.length()} bytes, ${loaded.size} rules"
             if (loaded.isNotEmpty() && firstContent != null) {
                 activeRule = loaded.first()
                 showRule(firstContent)
@@ -1088,7 +1092,7 @@ class MainActivity : Activity() {
                 loadingEditor = true
                 editor.setText("")
                 loadingEditor = false
-                dirtyText.text = "未找到规则"
+                dirtyText.text = "No rules found"
                 originalRuleJson = ""
                 baselineRuleJson = ""
                 renderFeatureSummary(null)
@@ -1098,7 +1102,6 @@ class MainActivity : Activity() {
         }
     }
 
-
     private fun loadRule(rule: RuleInfo) {
         if (!currentDbFile.exists()) return
         try {
@@ -1106,7 +1109,7 @@ class MainActivity : Activity() {
             activeRule = rule
             showRule(content)
         } catch (e: Exception) {
-            toast("载入规则失败：${e.message}")
+            toast("Failed to load rule: ${e.message}")
         }
     }
 
@@ -1142,11 +1145,11 @@ class MainActivity : Activity() {
 
     private fun saveCurrentRuleFromUi(showToast: Boolean): Boolean {
         val rule = activeRule ?: run {
-            if (showToast) toast("没有可保存的规则")
+            if (showToast) toast("No rule to save")
             return false
         }
         if (!currentDbFile.exists()) {
-            if (showToast) toast("当前没有 DB")
+            if (showToast) toast("No DB currently loaded")
             return false
         }
         return try {
@@ -1159,39 +1162,38 @@ class MainActivity : Activity() {
             updateDirtyText()
             updateRuleStats(normalized)
             updateVersionStatus(JoyoseDb.versionReport(currentDbFile))
-            if (showToast) toast("已保存到当前 DB")
+            if (showToast) toast("Saved to current DB")
             true
         } catch (e: Exception) {
-            toast("保存失败：${e.message}")
-            appendLog("error", "保存失败", e.message ?: e.javaClass.simpleName)
+            toast("Save failed: ${e.message}")
+            appendLog("error", "Save failed", e.message ?: e.javaClass.simpleName)
             false
         }
     }
 
     private fun pickGameThenApply(templateId: TemplateId) {
         if (activeRule == null || editor.text.isBlank()) {
-            toast("请先载入规则")
+            toast("Please load a rule first")
             return
         }
         if (templateId == TemplateId.RELAX_PID) {
             try {
                 readPidTempCelsius()
             } catch (e: Exception) {
-                toast(e.message ?: "请先填写有效温控阈值")
+                toast(e.message ?: "Please enter a valid thermal threshold first")
                 return
             }
         }
-        toast("正在读取本机应用列表…")
+        toast("Reading installed app list...")
         worker.execute {
             try {
                 val apps = listInstalledApps()
                 ui.post { showGamePicker(templateId, apps) }
             } catch (t: Throwable) {
-                toast("读取应用列表失败：${t.message ?: t.javaClass.simpleName}")
+                toast("Failed to read app list: ${t.message ?: t.javaClass.simpleName}")
             }
         }
     }
-
 
     private fun showGamePicker(templateId: TemplateId, apps: List<InstalledApp>) {
         val box = LinearLayout(this)
@@ -1199,7 +1201,7 @@ class MainActivity : Activity() {
         box.setPadding(dp(16), dp(4), dp(16), dp(4))
 
         val hint = text(
-            "已读取 ${apps.size} 个本机应用，可搜索后多选。点选不会立刻改规则，需再点「修改」。\n「全部游戏」只作用于 Joyose 配置里已有的游戏条目，不会给本机其它 App 新增配置。",
+            "${apps.size} installed apps found. Search and multi-select. Selecting won't modify rules immediately until you tap 'Apply'.\n'All Games' only affects game entries already existing in the Joyose config.",
             12,
             0xff6b7280.toInt(),
         )
@@ -1213,14 +1215,14 @@ class MainActivity : Activity() {
         box.addView(selectedText, selectedLp)
         fun refreshSelectedLabel() {
             selectedText.text = if (selected.isEmpty()) {
-                "未选择应用"
+                "No apps selected"
             } else {
-                "已选 ${selected.size} 个：${selected.joinToString(", ")}"
+                "Selected ${selected.size}: ${selected.joinToString(", ")}"
             }
         }
         refreshSelectedLabel()
 
-        val search = input("搜索应用名或包名", "")
+        val search = input("Search app name or package name", "")
         search.minHeight = dp(44)
         search.background = rounded(0xfff8fbff.toInt(), 8, 0xffdbe7f5.toInt())
         val searchLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -1296,14 +1298,14 @@ class MainActivity : Activity() {
         box.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(360)))
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("🎯 选择目标游戏")
+            .setTitle("🎯 Select Target Games")
             .setView(box)
-            .setNeutralButton("全部游戏") { _, _ ->
+            .setNeutralButton("All Games") { _, _ ->
                 packageInput.setText("")
                 applyTemplate(templateId, pkg = "")
             }
-            .setNegativeButton("取消", null)
-            .setPositiveButton("修改", null)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Apply", null)
             .create()
         dialog.setOnShowListener {
             val modify = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
@@ -1313,7 +1315,7 @@ class MainActivity : Activity() {
             syncModify()
             modify.setOnClickListener {
                 if (selected.isEmpty()) {
-                    toast("请先点选至少一个应用")
+                    toast("Please select at least one app first")
                     return@setOnClickListener
                 }
                 val pkgs = selected.joinToString(",")
@@ -1405,8 +1407,8 @@ class MainActivity : Activity() {
     private fun applyTemplate(templateId: TemplateId, pkg: String = packageInput.text.toString().trim()) {
         val rule = activeRule
         if (rule == null || editor.text.isBlank()) {
-            toast("请先载入规则")
-            appendLog("warn", "模板未执行", "请先载入规则")
+            toast("Please load a rule first")
+            appendLog("warn", "Template skipped", "Please load a rule first")
             return
         }
         val pkgs = parsePackageList(pkg)
@@ -1414,17 +1416,17 @@ class MainActivity : Activity() {
             try {
                 readPidTempCelsius().toString()
             } catch (e: Exception) {
-                toast(e.message ?: "请填写有效温控阈值")
-                appendLog("warn", "模板未执行", e.message ?: "请填写有效温控阈值")
+                toast(e.message ?: "Please enter a valid thermal threshold")
+                appendLog("warn", "Template skipped", e.message ?: "Please enter a valid thermal threshold")
                 return
             }
         } else {
             ""
         }
         val name = templateName(templateId)
-        val target = if (pkgs.isEmpty()) "Joyose 配置里已有的全部游戏条目" else pkgs.joinToString(", ")
-        val extraHint = if (templateId == TemplateId.RELAX_PID) "\n阈值：${formatJoyoseTemp(extra.toDouble())}°C" else ""
-        appendLog("info", "开始应用模板：$name", "目标：$target$extraHint")
+        val target = if (pkgs.isEmpty()) "All games existing in Joyose config" else pkgs.joinToString(", ")
+        val extraHint = if (templateId == TemplateId.RELAX_PID) "\nThreshold: ${formatJoyoseTemp(extra.toDouble())}°C" else ""
+        appendLog("info", "Applying template: $name", "Target: $target$extraHint")
         try {
             var json = editor.text.toString()
             val messages = mutableListOf<String>()
@@ -1435,7 +1437,7 @@ class MainActivity : Activity() {
                     val result = Templates.apply(templateId, json, originalRuleJson, pkgArg, extra)
                     json = result.json
                     messages.add(result.message)
-                    appendLog("ok", "$name 成功", result.message)
+                    appendLog("ok", "$name successful", result.message)
                 } else {
                     for (one in pkgs) {
                         try {
@@ -1444,19 +1446,19 @@ class MainActivity : Activity() {
                             messages.add(result.message)
                             appendLog("ok", "$name · $one", result.message)
                         } catch (e: Exception) {
-                            errors.add("$one：${e.message}")
-                            appendLog("error", "$name · $one 失败", e.message ?: e.javaClass.simpleName)
+                            errors.add("$one: ${e.message}")
+                            appendLog("error", "$name · $one failed", e.message ?: e.javaClass.simpleName)
                         }
                     }
                 }
             } catch (e: Exception) {
                 errors.add(e.message ?: e.javaClass.simpleName)
-                appendLog("error", "$name 失败", e.message ?: e.javaClass.simpleName)
+                appendLog("error", "$name failed", e.message ?: e.javaClass.simpleName)
             }
             if (messages.isEmpty()) {
-                val fail = errors.joinToString("；").ifBlank { "模板失败" }
+                val fail = errors.joinToString("; ").ifBlank { "Template execution failed" }
                 toast(fail)
-                appendLog("error", "$name 没有成功改动", errors.joinToString("\n").ifBlank { fail })
+                appendLog("error", "$name made no successful changes", errors.joinToString("\n").ifBlank { fail })
                 return
             }
             loadingEditor = true
@@ -1465,58 +1467,60 @@ class MainActivity : Activity() {
             dirty = true
             updateDirtyText()
             updateRuleStats(json)
-            val extraMsg = if (errors.isEmpty()) "" else "；未改动：${errors.joinToString("；")}"
-            toast(messages.joinToString("；") + extraMsg)
+            val extraMsg = if (errors.isEmpty()) "" else "; Unchanged: ${errors.joinToString("; ")}"
+            toast(messages.joinToString("; ") + extraMsg)
             appendLog(
                 if (errors.isEmpty()) "ok" else "warn",
-                "$name 已写入编辑器（尚未保存/推送）",
-                "成功 ${messages.size} 项${if (errors.isEmpty()) "" else "，失败 ${errors.size} 项"}\n" +
+                "$name written to editor (Unsaved / Not pushed)",
+                "Successful: ${messages.size}${if (errors.isEmpty()) "" else ", Failed: ${errors.size}"}\n" +
                     messages.joinToString("\n") +
-                    if (errors.isEmpty()) "" else "\n失败：\n${errors.joinToString("\n")}",
+                    if (errors.isEmpty()) "" else "\nFailed:\n${errors.joinToString("\n")}",
             )
         } catch (e: Exception) {
-            toast("模板失败：${e.message}")
-            appendLog("error", "$name 失败", e.message ?: e.javaClass.simpleName)
+            toast("Template failed: ${e.message}")
+            appendLog("error", "$name failed", e.message ?: e.javaClass.simpleName)
         }
     }
 
-
     private fun templateName(templateId: TemplateId): String = when (templateId) {
-        TemplateId.UNLOCK_FPS -> "解锁帧率锁"
-        TemplateId.RELAX_PID -> "放宽温控"
-        TemplateId.RAISE_MIGT -> "提升大核基线"
-        TemplateId.RAISE_MIGT_ALL -> "提升全部游戏大核基线"
-        TemplateId.CLEAR_THERMAL -> "移除温度降帧表"
-        TemplateId.DISABLE_BACKGROUND_FREEZE -> "关闭后台冻结"
-        TemplateId.DISABLE_TELEMETRY -> "关闭监控上报"
-        TemplateId.DISABLE_PREDOWNLOAD -> "关闭资源预下载"
-        TemplateId.DISABLE_L3_LOG -> "禁用 L3 卡顿日志"
-        TemplateId.ENABLE_QSYNC -> "开启 QSync"
-        TemplateId.RESET -> "恢复原始配置"
+        TemplateId.UNLOCK_FPS -> "Unlock FPS Lock"
+        TemplateId.RELAX_PID -> "Relax Thermal Throttling"
+        TemplateId.RAISE_MIGT -> "Raise Prime Core Baseline"
+        TemplateId.RAISE_MIGT_ALL -> "Raise Prime Core Baseline for All Games"
+        TemplateId.CLEAR_THERMAL -> "Remove Thermal FPS Table"
+        TemplateId.DISABLE_BACKGROUND_FREEZE -> "Disable Background Freeze"
+        TemplateId.DISABLE_TELEMETRY -> "Disable Telemetry"
+        TemplateId.DISABLE_PREDOWNLOAD -> "Disable Pre-download"
+        TemplateId.DISABLE_L3_LOG -> "Disable L3 Jank Log"
+        TemplateId.ENABLE_QSYNC -> "Enable QSync"
+        TemplateId.RESET -> "Reset to Original Config"
     }
+
     private fun readPidTempCelsius(): Double {
         if (!::pidTempInput.isInitialized) return 47.0
         val raw = pidTempInput.text.toString().trim()
             .replace("℃", "")
             .replace("°C", "")
             .replace("°", "")
-        val value = raw.toDoubleOrNull() ?: throw IOException("请填写有效的温控阈值，例如 47")
-        if (value < 20.0 || value > 80.0) throw IOException("温控阈值需在 20–80°C 之间")
+        val value = raw.toDoubleOrNull() ?: throw IOException("Please enter a valid thermal threshold, e.g. 47")
+        if (value < 20.0 || value > 80.0) throw IOException("Thermal threshold must be between 20°C and 80°C")
         return value
     }
+
     private fun parsePackageList(raw: String): List<String> {
         return raw.split(',', ';', '\n', '\t', ' ')
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
     }
+
     private fun renderRuleList(selectedChanged: Boolean? = null) {
         if (!::ruleListBox.isInitialized) return
         ruleListBox.removeAllViews()
         if (!::ruleListHint.isInitialized) return
         if (rules.isEmpty()) {
             ruleListHint.visibility = View.VISIBLE
-            ruleListHint.text = "尚未载入规则。请先到「设备」拉取配置，或到「云端」拉取规则。"
+            ruleListHint.text = "No rules loaded yet. Please pull config from 'Device' or fetch rules from 'Cloud'."
             return
         }
         val changed = selectedChanged ?: run {
@@ -1533,10 +1537,10 @@ class MainActivity : Activity() {
     private fun ruleKindLabel(module: String): String {
         val m = module.lowercase(Locale.US)
         return when {
-            m.contains("booster") -> "游戏加速"
-            m.contains("common") -> "通用配置"
-            m.contains("thermal") -> "温控"
-            else -> "其他规则"
+            m.contains("booster") -> "Game Booster"
+            m.contains("common") -> "Common Config"
+            m.contains("thermal") -> "Thermal"
+            else -> "Other Rules"
         }
     }
 
@@ -1546,10 +1550,10 @@ class MainActivity : Activity() {
         if (activeRule?.ruleId == rule.ruleId) return
         if (dirty) {
             AlertDialog.Builder(this)
-                .setTitle("切换规则")
-                .setMessage("当前规则有未保存修改，切换后这些修改会丢失。")
-                .setPositiveButton("仍要切换") { _, _ -> loadRule(rule) }
-                .setNegativeButton("取消", null)
+                .setTitle("Switch Rule")
+                .setMessage("Current rule has unsaved changes. Switching will discard them.")
+                .setPositiveButton("Switch Anyway") { _, _ -> loadRule(rule) }
+                .setNegativeButton("Cancel", null)
                 .show()
             return
         }
@@ -1588,9 +1592,9 @@ class MainActivity : Activity() {
         head.addView(kindView, kindLp)
 
         val stateLabel = when {
-            selected && modified -> "编辑中 · 已改"
-            selected -> "编辑中"
-            else -> "点此切换"
+            selected && modified -> "Editing · Modified"
+            selected -> "Editing"
+            else -> "Tap to switch"
         }
         val stateColor = when {
             selected && modified -> 0xffc2410c.toInt()
@@ -1603,7 +1607,7 @@ class MainActivity : Activity() {
         head.addView(stateView, stateLp)
         card.addView(head)
 
-        val titleView = text(rule.module.ifBlank { "未命名模块" }, 14, 0xff0f172a.toInt())
+        val titleView = text(rule.module.ifBlank { "Unnamed Module" }, 14, 0xff0f172a.toInt())
         titleView.typeface = Typeface.DEFAULT_BOLD
         val titleLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         titleLp.setMargins(0, dp(4), 0, 0)
@@ -1620,18 +1624,18 @@ class MainActivity : Activity() {
         if (!::featureSummaryBox.isInitialized) return false
         featureSummaryBox.removeAllViews()
         if (content.isNullOrBlank()) {
-            featureSummaryBox.addView(text("未载入规则", 13, 0xff64748b.toInt()))
+            featureSummaryBox.addView(text("No rules loaded", 13, 0xff64748b.toInt()))
             return false
         }
         val baseline = resolveBaselineContent(activeRule, baselineRuleJson)
         val rows = JoyoseDb.featureRows(content, baseline.takeIf { it.isNotBlank() })
         if (rows.isEmpty()) {
-            featureSummaryBox.addView(text("当前规则不是合法 JSON，无法识别功能", 13, 0xffb91c1c.toInt()))
+            featureSummaryBox.addView(text("Current rule is not valid JSON; unable to identify features", 13, 0xffb91c1c.toInt()))
             return false
         }
         val changedCount = rows.count { it.changed }
         val summary = text(
-            "对照$baselineLabel：已改 $changedCount 项，未改 ${rows.size - changedCount} 项",
+            "Compared to $baselineLabel: $changedCount modified, ${rows.size - changedCount} unmodified",
             12,
             0xff334155.toInt(),
         )
@@ -1661,7 +1665,7 @@ class MainActivity : Activity() {
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
-        val tag = text(if (changed) "已改" else "未改", 11, if (changed) Color.WHITE else tagFg)
+        val tag = text(if (changed) "Modified" else "Unmodified", 11, if (changed) Color.WHITE else tagFg)
         tag.typeface = Typeface.DEFAULT_BOLD
         tag.setPadding(dp(6), dp(2), dp(6), dp(2))
         tag.background = rounded(if (changed) 0xffea580c.toInt() else 0xffe2e8f0.toInt(), 999, if (changed) 0xffea580c.toInt() else 0xffe2e8f0.toInt())
@@ -1679,7 +1683,7 @@ class MainActivity : Activity() {
         card.addView(valueView, valueLp)
         val originalValue = row.original
         if (changed && !originalValue.isNullOrBlank() && originalValue != row.value) {
-            val fromView = text("云端：$originalValue", 11, 0xff9a3412.toInt())
+            val fromView = text("Cloud: $originalValue", 11, 0xff9a3412.toInt())
             val fromLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             fromLp.setMargins(0, dp(2), 0, 0)
             card.addView(fromView, fromLp)
@@ -1691,7 +1695,7 @@ class MainActivity : Activity() {
             card.addView(extraView, extraLp)
         }
         if (Restores.supports(row.key)) {
-            val restoreBtn = action("↩️ 还原为云端默认", kind = if (changed) "success" else "default") {
+            val restoreBtn = action("↩️ Restore Cloud Default", kind = if (changed) "success" else "default") {
                 restoreToCloud(row.key)
             }
             restoreBtn.setTextSize(12f)
@@ -1702,28 +1706,24 @@ class MainActivity : Activity() {
         return card
     }
 
-    /**
-     * 把某一项还原成「当前机型云端规则」里的默认值。
-     * 只改这一项，规则里的其余内容保持不变。
-     */
     private fun restoreToCloud(scope: String, pkg: String = "") {
         val rule = activeRule
         if (rule == null || editor.text.isBlank()) {
-            toast("请先载入规则")
-            appendLog("warn", "还原未执行", "请先载入规则")
+            toast("Please load a rule first")
+            appendLog("warn", "Restore skipped", "Please load a rule first")
             return
         }
         val name = Restores.scopeLabel(scope)
         val baseline = resolveBaselineContent(rule, baselineRuleJson)
         if (baseline.isBlank()) {
-            toast("没有云端对照规则，请先到「云端」页拉取")
-            appendLog("warn", "还原未执行：$name", "缺少云端对照规则")
+            toast("No cloud baseline available; please fetch from 'Cloud' tab first")
+            appendLog("warn", "Restore skipped: $name", "Missing cloud baseline rule")
             return
         }
-        if (!baselineLabel.startsWith("云端")) {
-            appendLog("warn", "还原对照的不是云端规则", "当前对照：$baselineLabel。建议先到「云端」页拉取当前机型规则后再还原。")
+        if (!baselineLabel.startsWith("Cloud")) {
+            appendLog("warn", "Baseline is not a cloud rule", "Current baseline: $baselineLabel. We recommend fetching cloud rules for your model first.")
         }
-        appendLog("info", "开始还原：$name", "对照：$baselineLabel" + if (pkg.isNotBlank()) "\n目标：$pkg" else "")
+        appendLog("info", "Restoring: $name", "Baseline: $baselineLabel" + if (pkg.isNotBlank()) "\nTarget: $pkg" else "")
         try {
             val result = Restores.restore(scope, editor.text.toString(), baseline, pkg)
             loadingEditor = true
@@ -1733,25 +1733,25 @@ class MainActivity : Activity() {
             updateDirtyText()
             updateRuleStats(result.json)
             toast(result.message)
-            appendLog("ok", "还原完成：$name（尚未保存/推送）", result.message)
+            appendLog("ok", "Restored: $name (Unsaved / Not pushed)", result.message)
         } catch (e: Exception) {
             val msg = e.message ?: e.javaClass.simpleName
-            toast("还原失败：$msg")
-            appendLog("error", "还原失败：$name", msg)
+            toast("Restore failed: $msg")
+            appendLog("error", "Restore failed: $name", msg)
         }
     }
 
     private fun reloadCurrentRule() {
         val rule = activeRule ?: run {
-            toast("请先载入规则")
+            toast("Please load a rule first")
             return
         }
         try {
             val content = JoyoseDb.readRuleContent(currentDbFile, rule.ruleId)
             showRule(content)
-            toast("已重载当前规则")
+            toast("Current rule reloaded")
         } catch (e: Exception) {
-            toast("重载失败：${e.message}")
+            toast("Reload failed: ${e.message}")
         }
     }
 
@@ -1759,7 +1759,7 @@ class MainActivity : Activity() {
         if (!::ruleStatsText.isInitialized) return
         val rule = activeRule
         if (rule == null || content.isNullOrBlank()) {
-            ruleStatsText.text = "未载入规则"
+            ruleStatsText.text = "No rules loaded"
             renderFeatureSummary(null)
             return
         }
@@ -1767,19 +1767,18 @@ class MainActivity : Activity() {
             val root = JSONObject(normalizeJson(content))
             val booster = root.optJSONObject("params")?.optJSONObject("game_booster")
                 ?: root.optJSONObject("game_booster")
-            "顶层字段：${root.length()}\n" +
-                "game_booster 子项：${booster?.length() ?: 0}\n" +
-                "原始大小：${(rule.contentLength / 1024.0).format1()} KB\n" +
-                "规则模块：${rule.module}\n" +
-                "rule_id：${rule.ruleId} · v${rule.version}"
+            "Top-level fields: ${root.length()}\n" +
+                "game_booster entries: ${booster?.length() ?: 0}\n" +
+                "Raw size: ${(rule.contentLength / 1024.0).format1()} KB\n" +
+                "Module: ${rule.module}\n" +
+                "rule_id: ${rule.ruleId} · v${rule.version}"
         }.getOrElse {
-            "当前规则不是可统计的 JSON\n规则模块：${rule.module}\nrule_id：${rule.ruleId} · v${rule.version}"
+            "Current rule is not valid JSON\nModule: ${rule.module}\nrule_id: ${rule.ruleId} · v${rule.version}"
         }
         ruleStatsText.text = stats
         val anyChanged = renderFeatureSummary(content)
         renderRuleList(anyChanged)
     }
-
 
     private fun updateVersionStatus(report: String) {
         ui.post {
@@ -1801,7 +1800,7 @@ class MainActivity : Activity() {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val backup = File(filesDir, "teg_config_${source}_$stamp.db")
         currentDbFile.copyTo(backup, overwrite = true)
-        appendLog("本地备份：${backup.name}")
+        appendLog("Local backup created: ${backup.name}")
     }
 
     private fun readDeviceIdentityOrNull(): DeviceIdentity? {
@@ -1859,11 +1858,10 @@ class MainActivity : Activity() {
         val path = result.stdout.trim().lineSequence().firstOrNull { it.startsWith("/") }.orEmpty()
         if (path.isNotBlank()) return path
         throw IOException(
-            "未找到 Joyose 数据库。已检查 /data/user_de、/data/user、/data/data 和 /data_mirror 下的 com.xiaomi.joyose/databases/teg_config.db。" +
-                "请先打开游戏工具箱或 Joyose 相关功能让系统生成云控配置；也可以先用云端拉取生成 DB 后再推送。"
+            "Joyose database not found. Checked com.xiaomi.joyose/databases/teg_config.db in /data/user_de, /data/user, /data/data, and /data_mirror.\n" +
+                "Please launch Game Turbo or Joyose features so the system generates cloud configs, or fetch from cloud to generate a DB before pushing."
         )
     }
-
 
     private fun applySystemBarPadding(view: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -1893,7 +1891,7 @@ class MainActivity : Activity() {
     private fun runTask(name: String, block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             if (taskBusy) {
-                toast("正在执行其他任务，请稍候")
+                toast("Another task is running, please wait")
                 return
             }
             setBusy(true)
@@ -1907,10 +1905,10 @@ class MainActivity : Activity() {
         try {
             appendLog("$name...")
             block()
-            appendLog("$name 完成")
+            appendLog("$name completed")
         } catch (t: Throwable) {
-            appendLog("$name 失败：${t.message ?: t.javaClass.simpleName}")
-            toast("$name 失败：${t.message ?: t.javaClass.simpleName}")
+            appendLog("$name failed: ${t.message ?: t.javaClass.simpleName}")
+            toast("$name failed: ${t.message ?: t.javaClass.simpleName}")
         } finally {
             if (releaseBusy) setBusy(false)
         }
@@ -1922,6 +1920,7 @@ class MainActivity : Activity() {
             busyButtons.forEach { it.alpha = if (busy) 0.72f else 1f }
         }
     }
+
     private fun markDirty() {
         dirty = true
         updateDirtyText()
@@ -1930,16 +1929,16 @@ class MainActivity : Activity() {
     private fun updateDirtyText() {
         val rule = activeRule
         dirtyText.text = if (rule == null) {
-            "未载入规则"
+            "No rules loaded"
         } else {
-            "${if (dirty) "有未保存修改" else "已保存"} · ${rule.module} · rule_id=${rule.ruleId} · $currentLabel"
+            "${if (dirty) "Unsaved changes" else "Saved"} · ${rule.module} · rule_id=${rule.ruleId} · $currentLabel"
         }
     }
 
     private fun appendLog(line: String) {
         val kind = when {
-            line.contains("失败") || line.contains("错误") -> "error"
-            line.contains("完成") || line.contains("成功") -> "ok"
+            line.contains("failed") || line.contains("error") || line.contains("失败") || line.contains("错误") -> "error"
+            line.contains("completed") || line.contains("success") || line.contains("完成") || line.contains("成功") -> "ok"
             else -> "info"
         }
         appendLog(kind, line, "")
@@ -1962,7 +1961,7 @@ class MainActivity : Activity() {
         if (!::logContainer.isInitialized) return
         logContainer.removeAllViews()
         if (logLines.isEmpty()) {
-            logText = text("暂无日志", 12, 0xff94a3b8.toInt())
+            logText = text("No logs yet", 12, 0xff94a3b8.toInt())
             logContainer.addView(logText)
             return
         }
@@ -1975,10 +1974,10 @@ class MainActivity : Activity() {
         val stroke: Int
         val tag: String
         when (entry.kind) {
-            "error" -> { bg = 0xfffff1f2.toInt(); fg = 0xffb91c1c.toInt(); stroke = 0xfffecdd3.toInt(); tag = "失败" }
-            "ok" -> { bg = 0xfff0fdf4.toInt(); fg = 0xff15803d.toInt(); stroke = 0xffbbf7d0.toInt(); tag = "成功" }
-            "warn" -> { bg = 0xfffffbeb.toInt(); fg = 0xffb45309.toInt(); stroke = 0xfffde68a.toInt(); tag = "注意" }
-            else -> { bg = 0xfff8fafc.toInt(); fg = 0xff334155.toInt(); stroke = 0xffe2e8f0.toInt(); tag = "记录" }
+            "error" -> { bg = 0xfffff1f2.toInt(); fg = 0xffb91c1c.toInt(); stroke = 0xfffecdd3.toInt(); tag = "FAILED" }
+            "ok" -> { bg = 0xfff0fdf4.toInt(); fg = 0xff15803d.toInt(); stroke = 0xffbbf7d0.toInt(); tag = "OK" }
+            "warn" -> { bg = 0xfffffbeb.toInt(); fg = 0xffb45309.toInt(); stroke = 0xfffde68a.toInt(); tag = "WARN" }
+            else -> { bg = 0xfff8fafc.toInt(); fg = 0xff334155.toInt(); stroke = 0xffe2e8f0.toInt(); tag = "INFO" }
         }
         val card = LinearLayout(this)
         card.orientation = LinearLayout.VERTICAL
@@ -2015,7 +2014,7 @@ class MainActivity : Activity() {
 
     private fun copyAllLogs() {
         if (logLines.isEmpty()) {
-            toast("暂无日志可复制")
+            toast("No logs to copy")
             return
         }
         val body = logLines.joinToString("\n") { e ->
@@ -2024,13 +2023,13 @@ class MainActivity : Activity() {
         }
         val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText("joyctl-log", body))
-        toast("已复制 ${logLines.size} 条日志")
+        toast("Copied ${logLines.size} log entries")
     }
 
     private fun clearLogs() {
         logLines.clear()
         renderLogs()
-        toast("日志已清空")
+        toast("Logs cleared")
     }
 
     private fun toast(message: String) {
@@ -2082,7 +2081,7 @@ class MainActivity : Activity() {
         badge.setPadding(dp(8), dp(4), dp(8), dp(4))
         badge.isClickable = true
         badge.isFocusable = true
-        badge.contentDescription = "显示说明"
+        badge.contentDescription = "Show description"
         badge.setOnClickListener {
             val show = target.visibility != View.VISIBLE
             target.visibility = if (show) View.VISIBLE else View.GONE
@@ -2137,7 +2136,7 @@ class MainActivity : Activity() {
             val buttons = row()
             buttons.addView(rowAction(button, kind = "primary", onClick = onClick))
             buttons.addView(
-                rowAction("↩️ 还原", kind = "success") {
+                rowAction("↩️ Restore", kind = "success") {
                     restoreToCloud(restoreScope, if (restoreUsesPackages) packageInput.text.toString().trim() else "")
                 }.also {
                     (it.layoutParams as LinearLayout.LayoutParams).setMargins(0, dp(4), 0, 0)
@@ -2191,6 +2190,7 @@ class MainActivity : Activity() {
         b.minHeight = dp(40)
         b.setPadding(dp(8), dp(8), dp(8), dp(8))
     }
+
     private fun input(hint: String, initial: String): EditText {
         val e = EditText(this)
         e.hint = hint
@@ -2282,10 +2282,11 @@ object Shell {
         if (!done) p.destroyForcibly()
         tOut.join(1500)
         tErr.join(1500)
-        if (!done) throw IOException("命令超时：$command")
+        if (!done) throw IOException("Command timed out: $command")
         return Result(p.exitValue(), out.toString(), err.toString())
     }
 }
+
 object JoyoseDb {
     private const val MAX_DB_SIZE = 20 * 1024 * 1024L
 
@@ -2300,12 +2301,12 @@ object JoyoseDb {
     }
 
     fun validate(file: File) {
-        if (!file.exists()) throw IOException("数据库文件不存在")
-        if (file.length() > MAX_DB_SIZE) throw IOException("数据库过大：${file.length()} bytes")
+        if (!file.exists()) throw IOException("Database file does not exist")
+        if (file.length() > MAX_DB_SIZE) throw IOException("Database too large: ${file.length()} bytes")
         file.inputStream().use {
             val magic = ByteArray(15)
             if (it.read(magic) != magic.size || String(magic) != "SQLite format 3") {
-                throw IOException("不是合法 SQLite 数据库")
+                throw IOException("Not a valid SQLite database")
             }
         }
         val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
@@ -2315,10 +2316,10 @@ object JoyoseDb {
                 while (c.moveToNext()) cols.add(c.getString(1))
             }
             listOf("rule_id", "rule_version", "rule_module", "rule_content").forEach {
-                if (!cols.contains(it)) throw IOException("rules 表缺少字段：$it")
+                if (!cols.contains(it)) throw IOException("rules table missing column: $it")
             }
             db.rawQuery("SELECT COUNT(*) FROM rules", null).use { c ->
-                if (c.moveToFirst() && c.getLong(0) > 200) throw IOException("规则数过多")
+                if (c.moveToFirst() && c.getLong(0) > 200) throw IOException("Too many rules")
             }
         } finally {
             db.close()
@@ -2366,7 +2367,7 @@ object JoyoseDb {
         val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
         try {
             db.rawQuery("SELECT rule_content FROM rules WHERE rule_id=?", arrayOf(ruleId.toString())).use { c ->
-                if (!c.moveToFirst()) throw IOException("未找到 rule_id=$ruleId")
+                if (!c.moveToFirst()) throw IOException("rule_id=$ruleId not found")
                 return c.getString(0)
             }
         } finally {
@@ -2380,7 +2381,7 @@ object JoyoseDb {
             val cv = ContentValues()
             cv.put("rule_content", content)
             val rows = db.update("rules", cv, "rule_id=?", arrayOf(ruleId.toString()))
-            if (rows <= 0) throw IOException("未更新任何规则")
+            if (rows <= 0) throw IOException("No rules updated")
         } finally {
             db.close()
         }
@@ -2435,13 +2436,13 @@ object JoyoseDb {
 
     fun versionReport(file: File): String {
         val rows = readAllRuleContents(file)
-        if (rows.isEmpty()) return "当前 DB 未找到规则"
+        if (rows.isEmpty()) return "No rules found in current DB"
         return buildString {
-            append("当前 DB 规则版本\n")
+            append("Current DB Rule Versions\n")
             rows.forEach { (rule, content) ->
                 append("• ${rule.module} / id=${rule.ruleId}: rule_version=${rule.version}, JSON version=${extractJsonVersion(content)}\n")
             }
-            append("可用“检查设备版本/覆盖状态”与设备端 DB 对比，判断是否已成功替换或被云控覆盖。")
+            append("Use 'Check Device Version / Overwrite Status' to compare with device DB and verify if replacements were applied or overwritten.")
         }.trim()
     }
 
@@ -2454,28 +2455,28 @@ object JoyoseDb {
         val ruleKeys = (localByKey.keys + deviceByKey.keys).sorted()
         var same = localRows.size == deviceRows.size
         val report = buildString {
-            append("设备端覆盖状态\n")
+            append("Device Overwrite Status\n")
             for (ruleKey in ruleKeys) {
                 val l = localByKey[ruleKey]
                 val d = deviceByKey[ruleKey]
                 if (l == null) {
                     same = false
-                    append("• $ruleKey: 仅设备端存在，可能已被云控新增\n")
+                    append("• $ruleKey: Exists only on device, possibly added by cloud control\n")
                     continue
                 }
                 if (d == null) {
                     same = false
-                    append("• $ruleKey: 设备端缺失，未成功写入\n")
+                    append("• $ruleKey: Missing on device, write unsuccessful\n")
                     continue
                 }
                 val localJsonVersion = extractJsonVersion(l.second)
                 val deviceJsonVersion = extractJsonVersion(d.second)
                 val contentSame = canonicalContent(l.second) == canonicalContent(d.second)
                 if (!contentSame) same = false
-                val status = if (contentSame) "一致" else if (deviceJsonVersion != localJsonVersion || d.first.version != l.first.version) "版本不一致，疑似被云控覆盖" else "版本相同但内容不同"
+                val status = if (contentSame) "Matches" else if (deviceJsonVersion != localJsonVersion || d.first.version != l.first.version) "Version mismatch, likely overwritten by cloud control" else "Identical version but different content"
                 append("• ${l.first.module} / id=${l.first.ruleId}: $status\n")
-                append("  当前 rule_version=${l.first.version}, JSON version=$localJsonVersion\n")
-                append("  设备 rule_version=${d.first.version}, JSON version=$deviceJsonVersion\n")
+                append("  Local rule_version=${l.first.version}, JSON version=$localJsonVersion\n")
+                append("  Device rule_version=${d.first.version}, JSON version=$deviceJsonVersion\n")
             }
         }.trim()
         return CompareResult(same, report)
@@ -2489,8 +2490,8 @@ object JoyoseDb {
                 root.has("version") -> root.opt("version")?.toString()
                 header?.has("version") == true -> header.opt("version")?.toString()
                 else -> null
-            } ?: "未找到"
-        }.getOrDefault("无法解析")
+            } ?: "Not found"
+        }.getOrDefault("Parse error")
     }
 
     data class FeatureRow(
@@ -2509,7 +2510,7 @@ object JoyoseDb {
         val baseFeatures = baseRoot?.let { detectFeatures(it) }.orEmpty()
         val oldByKey = baseFeatures.associateBy { it.key }
         val pkgDiff = packageDiff(baseRoot, root)
-        val fpsExtra = pkgDiff.filter { it.startsWith("帧率锁") }
+        val fpsExtra = pkgDiff.filter { it.startsWith("FPS lock") }
         val migtExtra = pkgDiff.filter { it.startsWith("migt") }
         return currentFeatures.map { now ->
             val before = oldByKey[now.key]
@@ -2532,21 +2533,20 @@ object JoyoseDb {
 
     fun featureSummary(content: String, baseline: String?): String {
         val rows = featureRows(content, baseline)
-        if (rows.isEmpty()) return "当前规则不是合法 JSON，无法识别功能"
+        if (rows.isEmpty()) return "Current rule is not valid JSON; unable to identify features"
         val changedCount = rows.count { it.changed }
         return buildString {
-            append("对照载入时的原始规则：已改 $changedCount 项，未改 ${rows.size - changedCount} 项\n")
+            append("Compared to original rule at load time: $changedCount modified, ${rows.size - changedCount} unmodified\n")
             rows.forEach { row ->
                 if (row.changed) {
-                    append("▲ ${row.name}：${row.original ?: "原值未知"} → ${row.value}\n")
+                    append("▲ ${row.name}: ${row.original ?: "Unknown original"} → ${row.value}\n")
                     row.extra.forEach { append("    · $it\n") }
                 } else {
-                    append("○ ${row.name}：${row.value}\n")
+                    append("○ ${row.name}: ${row.value}\n")
                 }
             }
         }.trim()
     }
-
 
     private data class FeatureValue(val key: String, val name: String, val value: String)
 
@@ -2556,8 +2556,8 @@ object JoyoseDb {
             ?: root.optJSONArray("game_list")
         if (gb == null) {
             return listOfNotNull(
-                FeatureValue("game_booster", "游戏加速器", "未找到 game_booster"),
-                gameList?.let { FeatureValue("game_list", "游戏识别列表", "${it.length()} 个包名") },
+                FeatureValue("game_booster", "Game Booster", "game_booster not found"),
+                gameList?.let { FeatureValue("game_list", "Game Recognition List", "${it.length()} packages") },
             )
         }
         val novatek = gb.optJSONObject("novatek_extend_config")?.optJSONArray("novatek_gex_fps_limit")
@@ -2567,20 +2567,20 @@ object JoyoseDb {
         val mqsEnhance = gb.optJSONArray("mqs_enhance_list")
         val mqsExtend = gb.optJSONObject("mqs_extend_config")
         return listOfNotNull(
-            FeatureValue("novatek", "屏幕驱动帧率锁", if (novatek == null) "未配置" else "${novatek.length()} 条限制"),
-            FeatureValue("pid_thermal", "策略组温控 PID", pidSummary(gb)),
-            FeatureValue("dynamic_fps", "全局温度降帧表", dfg?.optString("dynamic_fps", "未配置") ?: "未配置"),
-            FeatureValue("dynamic_fps_m", "天玑温度降帧表", dfg?.optString("dynamic_fps_M", "未配置") ?: "未配置"),
-            FeatureValue("migt", "migt CPU 大核基线", migtSummary(gb)),
-            FeatureValue("background_freeze", "后台冻结", boolText(gb, "background_freeze_enable")),
-            FeatureValue("monitor", "性能监控", boolText(monitor, "monitor_enable")),
-            FeatureValue("analytics", "分析上报", boolText(monitor, "analytics_enable")),
-            FeatureValue("mqs_enhance", "重点监控游戏", if (mqsEnhance == null) "未配置" else "${mqsEnhance.length()} 个"),
-            FeatureValue("expand_power", "扩展功耗采集", boolText(mqsExtend, "expand_power")),
-            FeatureValue("predownload", "资源预下载", boolText(gb, "predownload_enable")),
-            FeatureValue("l3_jank", "L3 卡顿日志采集", boolText(debug, "L3_jank_debug_log_enable")),
-            FeatureValue("qsync", "QSync 显示同步", boolText(gb, "qsync_enable")),
-            gameList?.let { FeatureValue("game_list", "游戏识别列表", "${it.length()} 个包名") },
+            FeatureValue("novatek", "Display Driver FPS Lock", if (novatek == null) "Not configured" else "${novatek.length()} limits"),
+            FeatureValue("pid_thermal", "Policy Group Thermal PID", pidSummary(gb)),
+            FeatureValue("dynamic_fps", "Global Thermal FPS Table", dfg?.optString("dynamic_fps", "Not configured") ?: "Not configured"),
+            FeatureValue("dynamic_fps_m", "Dimensity Thermal FPS Table", dfg?.optString("dynamic_fps_M", "Not configured") ?: "Not configured"),
+            FeatureValue("migt", "migt CPU Prime Core Baseline", migtSummary(gb)),
+            FeatureValue("background_freeze", "Background Freeze", boolText(gb, "background_freeze_enable")),
+            FeatureValue("monitor", "Performance Monitor", boolText(monitor, "monitor_enable")),
+            FeatureValue("analytics", "Analytics Reporting", boolText(monitor, "analytics_enable")),
+            FeatureValue("mqs_enhance", "MQS Enhanced Monitored Games", if (mqsEnhance == null) "Not configured" else "${mqsEnhance.length()} games"),
+            FeatureValue("expand_power", "Extended Power Metrics", boolText(mqsExtend, "expand_power")),
+            FeatureValue("predownload", "Resource Pre-download", boolText(gb, "predownload_enable")),
+            FeatureValue("l3_jank", "L3 Jank Log Collection", boolText(debug, "L3_jank_debug_log_enable")),
+            FeatureValue("qsync", "QSync Display Sync", boolText(gb, "qsync_enable")),
+            gameList?.let { FeatureValue("game_list", "Game Recognition List", "${it.length()} packages") },
         )
     }
 
@@ -2590,19 +2590,19 @@ object JoyoseDb {
             .mapNotNull { it.groupValues[1].toDoubleOrNull() }
             .filter { it > 10.0 }
             .toList()
-        if (starts.isEmpty()) return "未配置"
+        if (starts.isEmpty()) return "Not configured"
         val counts = starts.groupingBy { formatJoyoseTemp(it) }.eachCount().toSortedMap(compareBy { it.toDouble() })
         return if (counts.size == 1) {
-            "统一 ${counts.keys.first()}°C · ${starts.size} 处"
+            "Uniform ${counts.keys.first()}°C · ${starts.size} entries"
         } else {
-            val summary = counts.entries.joinToString("，") { "${it.key}°C×${it.value}" }
-            "$summary · 共 ${starts.size} 处"
+            val summary = counts.entries.joinToString(", ") { "${it.key}°C×${it.value}" }
+            "$summary · Total ${starts.size} entries"
         }
     }
 
     private fun migtSummary(gb: JSONObject): String {
-        val list = gb.optJSONArray("migt") ?: return "未配置"
-        if (list.length() == 0) return "0 条游戏策略"
+        val list = gb.optJSONArray("migt") ?: return "Not configured"
+        if (list.length() == 0) return "0 game policies"
         val freqCount = linkedMapOf<String, Int>()
         var parsed = 0
         for (i in 0 until list.length()) {
@@ -2611,9 +2611,9 @@ object JoyoseDb {
             parsed++
             freqCount[mhz] = (freqCount[mhz] ?: 0) + 1
         }
-        if (parsed == 0) return "${list.length()} 条游戏策略"
-        val freqText = freqCount.entries.joinToString("，") { "${it.key}×${it.value}" }
-        return "${list.length()} 条（大核 $freqText）"
+        if (parsed == 0) return "${list.length()} game policies"
+        val freqText = freqCount.entries.joinToString(", ") { "${it.key}×${it.value}" }
+        return "${list.length()} entries (Prime core $freqText)"
     }
 
     private fun migtBigCoreMhz(entry: String): String? {
@@ -2655,18 +2655,18 @@ object JoyoseDb {
         val oldFps = fpsMap(oldGb)
         val nowFps = fpsMap(nowGb)
         (oldFps.keys - nowFps.keys).sorted().forEach { pkg ->
-            lines += "帧率锁移除 $pkg（原 ${oldFps[pkg]}）"
+            lines += "FPS lock removed: $pkg (was ${oldFps[pkg]})"
         }
         (nowFps.keys - oldFps.keys).sorted().forEach { pkg ->
-            lines += "帧率锁新增 $pkg=${nowFps[pkg]}"
+            lines += "FPS lock added: $pkg=${nowFps[pkg]}"
         }
         nowFps.keys.intersect(oldFps.keys).sorted().forEach { pkg ->
-            if (oldFps[pkg] != nowFps[pkg]) lines += "帧率锁 $pkg: ${oldFps[pkg]} -> ${nowFps[pkg]}"
+            if (oldFps[pkg] != nowFps[pkg]) lines += "FPS lock $pkg: ${oldFps[pkg]} -> ${nowFps[pkg]}"
         }
         val oldMigt = migtMap(oldGb)
         val nowMigt = migtMap(nowGb)
         nowMigt.keys.intersect(oldMigt.keys).sorted().forEach { pkg ->
-            if (oldMigt[pkg] != nowMigt[pkg]) lines += "migt 大核 $pkg: ${oldMigt[pkg]} -> ${nowMigt[pkg]}"
+            if (oldMigt[pkg] != nowMigt[pkg]) lines += "migt prime core $pkg: ${oldMigt[pkg]} -> ${nowMigt[pkg]}"
         }
         return lines
     }
@@ -2675,6 +2675,7 @@ object JoyoseDb {
         val asLong = v.toLong()
         return if (v == asLong.toDouble()) asLong.toString() else v.toString()
     }
+
     private fun changedFeatureNames(old: List<FeatureValue>, current: List<FeatureValue>): List<String> {
         val oldByKey = old.associateBy { it.key }
         return current.mapNotNull { now ->
@@ -2697,8 +2698,8 @@ object JoyoseDb {
     }
 
     private fun boolText(obj: JSONObject?, key: String): String {
-        if (obj == null || !obj.has(key)) return "未配置"
-        return if (obj.optBoolean(key)) "开启" else "关闭"
+        if (obj == null || !obj.has(key)) return "Not configured"
+        return if (obj.optBoolean(key)) "Enabled" else "Disabled"
     }
 }
 
@@ -2713,6 +2714,7 @@ data class CloudParams(
     val identity: DeviceIdentity?,
     val versionName: String = "2.4.77",
 )
+
 data class CloudFetchResult(val maxVersion: String, val applyRules: List<CloudRule>, val skipped: List<String> = emptyList())
 
 object MccClient {
@@ -2764,7 +2766,7 @@ object MccClient {
         }
         val root = JSONObject(text)
         val code = root.optLong("code", -1)
-        if (code != 200L) throw IOException("服务器返回 code=$code")
+        if (code != 200L) throw IOException("Server returned code=$code")
         val data = root.optJSONObject("data") ?: JSONObject()
         val maxVersion = data.opt("maxVersion")?.toString() ?: ""
         val rules = data.optJSONArray("rules") ?: JSONArray()
@@ -2788,8 +2790,8 @@ object MccClient {
                     )
                 )
             } else {
-                val module = r.optString("moduleKey").ifBlank { "(无 moduleKey)" }
-                skipped.add("$module id=${r.optLong("ruleId")} status=$status${if (content.isBlank()) " 空内容" else ""}")
+                val module = r.optString("moduleKey").ifBlank { "(No moduleKey)" }
+                skipped.add("$module id=${r.optLong("ruleId")} status=$status${if (content.isBlank()) " Empty content" else ""}")
             }
         }
         return CloudFetchResult(maxVersion, apply, skipped)
@@ -2842,6 +2844,7 @@ enum class TemplateId {
     ENABLE_QSYNC,
     RESET,
 }
+
 data class TemplateResult(val message: String, val json: String)
 
 object Templates {
@@ -2852,14 +2855,14 @@ object Templates {
             TemplateId.RAISE_MIGT -> raiseMigt(current, pkg)
             TemplateId.RAISE_MIGT_ALL -> raiseMigt(current, "")
             TemplateId.CLEAR_THERMAL -> clearThermal(current)
-            TemplateId.DISABLE_BACKGROUND_FREEZE -> editBooster(current, "后台冻结已关闭") { it.put("background_freeze_enable", false) }
+            TemplateId.DISABLE_BACKGROUND_FREEZE -> editBooster(current, "Background freeze disabled") { it.put("background_freeze_enable", false) }
             TemplateId.DISABLE_TELEMETRY -> disableTelemetry(current)
-            TemplateId.DISABLE_PREDOWNLOAD -> editBooster(current, "已关闭资源预下载") { it.put("predownload_enable", false) }
+            TemplateId.DISABLE_PREDOWNLOAD -> editBooster(current, "Resource pre-download disabled") { it.put("predownload_enable", false) }
             TemplateId.DISABLE_L3_LOG -> disableL3Log(current)
-            TemplateId.ENABLE_QSYNC -> editBooster(current, "已开启 QSync") { it.put("qsync_enable", true) }
+            TemplateId.ENABLE_QSYNC -> editBooster(current, "QSync enabled") { it.put("qsync_enable", true) }
             TemplateId.RESET -> {
-                if (original.isBlank()) throw IOException("没有原始配置")
-                TemplateResult("已恢复原始配置", normalizeJson(original))
+                if (original.isBlank()) throw IOException("No original configuration available")
+                TemplateResult("Reset to original configuration", normalizeJson(original))
             }
         }
     }
@@ -2867,11 +2870,11 @@ object Templates {
     private fun unlockFps(current: String, pkg: String): TemplateResult {
         val root = JSONObject(normalizeJson(current))
         val gb = booster(root)
-        val ext = gb.optJSONObject("novatek_extend_config") ?: throw IOException("未找到 novatek_extend_config")
-        val list = ext.optJSONArray("novatek_gex_fps_limit") ?: throw IOException("未找到 novatek_gex_fps_limit")
+        val ext = gb.optJSONObject("novatek_extend_config") ?: throw IOException("novatek_extend_config not found")
+        val list = ext.optJSONArray("novatek_gex_fps_limit") ?: throw IOException("novatek_gex_fps_limit not found")
         if (pkg.isBlank()) {
             ext.put("novatek_gex_fps_limit", JSONArray())
-            return TemplateResult("已清空全部游戏帧率锁", root.toString())
+            return TemplateResult("Cleared all game FPS locks", root.toString())
         }
         val kept = JSONArray()
         var hit = 0
@@ -2879,16 +2882,16 @@ object Templates {
             val value = list.optString(i)
             if (value.startsWith(pkg)) hit++ else kept.put(value)
         }
-        if (hit == 0) throw IOException("未找到 $pkg 的帧率锁条目")
+        if (hit == 0) throw IOException("No FPS lock entry found for $pkg")
         ext.put("novatek_gex_fps_limit", kept)
-        return TemplateResult("已移除 $pkg 的帧率锁", root.toString())
+        return TemplateResult("Removed FPS lock for $pkg", root.toString())
     }
 
     private fun relaxPid(current: String, pkg: String, celsius: Double): TemplateResult {
         val root = JSONObject(normalizeJson(current))
         val gb = booster(root)
         val overrides = gb.optJSONObject("booster_config")?.optJSONArray("ovrride_config")
-            ?: throw IOException("未找到 booster_config.ovrride_config")
+            ?: throw IOException("booster_config.ovrride_config not found")
         val groupPkgs = pidGroupPackages(gb)
         val targets = pkg.split(',', ';', '\n', '\t', ' ')
             .map { it.trim() }
@@ -2923,23 +2926,23 @@ object Templates {
             }
             if (changedThis) {
                 groups++
-                hitNames.add(gameName.ifBlank { "未命名策略组" })
+                hitNames.add(gameName.ifBlank { "Unnamed Policy Group" })
             } else if (alreadyThis) {
                 already++
             }
         }
         if (groups == 0) {
             if (already > 0) {
-                return TemplateResult("所选策略组温控已是 ${start}°C，无需修改", root.toString())
+                return TemplateResult("Selected policy groups are already at ${start}°C; no changes needed", root.toString())
             }
             throw IOException(
-                if (targets.isEmpty()) "未找到可修改的策略组温控 PID"
-                else "未找到 ${targets.joinToString(", ")} 的策略组温控 PID",
+                if (targets.isEmpty()) "No modifiable policy group thermal PID found"
+                else "No policy group thermal PID found for ${targets.joinToString(", ")}",
             )
         }
-        val who = if (targets.isEmpty()) "全部已有 PID 的策略组" else hitNames.joinToString("、")
+        val who = if (targets.isEmpty()) "All existing PID policy groups" else hitNames.joinToString(", ")
         return TemplateResult(
-            "已将 $who 的温控阈值写成 Joyose 格式 $start:$end（${start}°C，共 $fields 处）",
+            "Updated thermal threshold for $who to Joyose format $start:$end (${start}°C across $fields entries)",
             root.toString(),
         )
     }
@@ -2991,7 +2994,7 @@ object Templates {
     private fun raiseMigt(current: String, pkg: String): TemplateResult {
         val root = JSONObject(normalizeJson(current))
         val gb = booster(root)
-        val list = gb.optJSONArray("migt") ?: throw IOException("未找到 migt 数组")
+        val list = gb.optJSONArray("migt") ?: throw IOException("migt array not found")
         var hit = 0
         for (i in 0 until list.length()) {
             val entry = list.optString(i)
@@ -3007,16 +3010,16 @@ object Templates {
                 hit++
             }
         }
-        if (hit == 0) throw IOException(if (pkg.isBlank()) "没有可提升的 migt 条目" else "未找到 $pkg 的 migt 条目")
-        return TemplateResult(if (pkg.isBlank()) "已提升 $hit 个游戏的大核基线" else "$pkg 大核基线已提升到 1400MHz", root.toString())
+        if (hit == 0) throw IOException(if (pkg.isBlank()) "No modifiable migt entries found" else "No migt entry found for $pkg")
+        return TemplateResult(if (pkg.isBlank()) "Raised prime core baseline for $hit games" else "Prime core baseline for $pkg raised to 1400MHz", root.toString())
     }
 
     private fun clearThermal(current: String): TemplateResult {
         val root = JSONObject(normalizeJson(current))
-        val dfg = booster(root).optJSONObject("dynamic_fps_global") ?: throw IOException("未找到 dynamic_fps_global")
+        val dfg = booster(root).optJSONObject("dynamic_fps_global") ?: throw IOException("dynamic_fps_global not found")
         dfg.put("dynamic_fps", "10:0")
         if (dfg.has("dynamic_fps_M")) dfg.put("dynamic_fps_M", "10:0")
-        return TemplateResult("全局温度降帧表已移除", root.toString())
+        return TemplateResult("Global thermal FPS table removed", root.toString())
     }
 
     private fun disableTelemetry(current: String): TemplateResult {
@@ -3028,12 +3031,12 @@ object Templates {
         }
         if (gb.has("mqs_enhance_list")) gb.put("mqs_enhance_list", JSONArray())
         gb.optJSONObject("mqs_extend_config")?.put("expand_power", false)
-        return TemplateResult("已关闭监控、质量上报和功耗采集", root.toString())
+        return TemplateResult("Disabled monitoring, quality reporting, and power metrics", root.toString())
     }
 
     private fun disableL3Log(current: String): TemplateResult {
-        return editBooster(current, "已禁用 L3 卡顿日志采集") { gb ->
-            val cfg = gb.optJSONObject("booster_debug_log_collect_config") ?: throw IOException("未找到 booster_debug_log_collect_config")
+        return editBooster(current, "L3 jank log collection disabled") { gb ->
+            val cfg = gb.optJSONObject("booster_debug_log_collect_config") ?: throw IOException("booster_debug_log_collect_config not found")
             cfg.put("L3_jank_debug_log_enable", false)
         }
     }
@@ -3047,50 +3050,45 @@ object Templates {
     private fun booster(root: JSONObject): JSONObject {
         root.optJSONObject("params")?.optJSONObject("game_booster")?.let { return it }
         root.optJSONObject("game_booster")?.let { return it }
-        throw IOException("未找到 game_booster")
+        throw IOException("game_booster not found")
     }
 }
 
-/**
- * 单项还原：把某一个开关/功能恢复成「当前机型云端规则」里的默认值，
- * 其余字段一律保持当前编辑器里的内容不变。
- */
 object Restores {
     const val SCOPE_ALL = "all"
 
     fun scopeLabel(scope: String): String = when (scope) {
-        SCOPE_ALL -> "整条规则"
-        "novatek" -> "屏幕驱动帧率锁"
-        "pid_thermal" -> "策略组温控 PID"
-        "dynamic_fps" -> "全局温度降帧表"
-        "dynamic_fps_m" -> "天玑温度降帧表"
-        "thermal_table" -> "温度降帧表"
-        "migt" -> "migt CPU 大核基线"
-        "background_freeze" -> "后台冻结"
-        "monitor" -> "性能监控"
-        "analytics" -> "分析上报"
-        "telemetry" -> "监控与质量上报"
-        "mqs_enhance" -> "重点监控游戏"
-        "expand_power" -> "扩展功耗采集"
-        "predownload" -> "资源预下载"
-        "l3_jank" -> "L3 卡顿日志采集"
-        "qsync" -> "QSync 显示同步"
-        "game_list" -> "游戏识别列表"
+        SCOPE_ALL -> "Entire Rule"
+        "novatek" -> "Display Driver FPS Lock"
+        "pid_thermal" -> "Policy Group Thermal PID"
+        "dynamic_fps" -> "Global Thermal FPS Table"
+        "dynamic_fps_m" -> "Dimensity Thermal FPS Table"
+        "thermal_table" -> "Thermal FPS Table"
+        "migt" -> "migt CPU Prime Core Baseline"
+        "background_freeze" -> "Background Freeze"
+        "monitor" -> "Performance Monitor"
+        "analytics" -> "Analytics Reporting"
+        "telemetry" -> "Monitoring & Telemetry"
+        "mqs_enhance" -> "MQS Enhanced Monitored Games"
+        "expand_power" -> "Extended Power Metrics"
+        "predownload" -> "Resource Pre-download"
+        "l3_jank" -> "L3 Jank Log Collection"
+        "qsync" -> "QSync Display Sync"
+        "game_list" -> "Game Recognition List"
         else -> scope
     }
 
-    /** 功能识别面板的行 key 是否支持单项还原。 */
     fun supports(scope: String): Boolean = scope == SCOPE_ALL || scopeLabel(scope) != scope
 
     fun restore(scope: String, current: String, baseline: String, pkg: String = ""): TemplateResult {
-        if (baseline.isBlank()) throw IOException("没有云端对照规则，请先到「云端」页拉取当前机型的规则")
+        if (baseline.isBlank()) throw IOException("No cloud baseline rule found. Please fetch rules for your device model from the 'Cloud' tab first")
         val root = JSONObject(normalizeJson(current))
         val baseRoot = JSONObject(normalizeJson(baseline))
         if (scope == SCOPE_ALL) {
             if (root.toString() == baseRoot.toString()) {
-                return TemplateResult("整条规则已与云端一致，无需还原", root.toString())
+                return TemplateResult("The entire rule already matches cloud defaults; no restore needed", root.toString())
             }
-            return TemplateResult("已按云端规则还原整条规则", baseRoot.toString())
+            return TemplateResult("Restored entire rule from cloud config", baseRoot.toString())
         }
         if (scope == "game_list") return restoreGameList(root, baseRoot)
         val gb = booster(root)
@@ -3111,14 +3109,14 @@ object Restores {
             "predownload" -> restoreDirect(root, gb, baseGb, listOf("predownload_enable"), scope)
             "qsync" -> restoreDirect(root, gb, baseGb, listOf("qsync_enable"), scope)
             "telemetry" -> restoreTelemetry(root, gb, baseGb)
-            else -> throw IOException("暂不支持还原：$scope")
+            else -> throw IOException("Restoring $scope is not currently supported")
         }
     }
 
-    private fun restoreGameList(root: JSONObject, baseRoot: JSONObject) : TemplateResult {
+    private fun restoreGameList(root: JSONObject, baseRoot: JSONObject): TemplateResult {
         val baseList = baseRoot.optJSONObject("params")?.optJSONArray("game_list")
             ?: baseRoot.optJSONArray("game_list")
-            ?: throw IOException("云端规则里没有 game_list")
+            ?: throw IOException("game_list not found in cloud rule")
         val holder = when {
             root.optJSONObject("params")?.has("game_list") == true -> root.getJSONObject("params")
             root.has("game_list") -> root
@@ -3126,10 +3124,10 @@ object Restores {
             else -> root
         }
         if (holder.optJSONArray("game_list")?.toString() == baseList.toString()) {
-            return TemplateResult("游戏识别列表已与云端一致", root.toString())
+            return TemplateResult("Game recognition list already matches cloud defaults", root.toString())
         }
         holder.put("game_list", JSONArray(baseList.toString()))
-        return TemplateResult("已按云端规则还原游戏识别列表（${baseList.length()} 个包名）", root.toString())
+        return TemplateResult("Restored game recognition list from cloud config (${baseList.length()} packages)", root.toString())
     }
 
     private fun restoreDirect(
@@ -3167,7 +3165,7 @@ object Restores {
         scope: String,
     ): TemplateResult {
         val name = scopeLabel(scope)
-        val baseParent = baseGb.optJSONObject(parent) ?: throw IOException("云端规则里没有 $parent")
+        val baseParent = baseGb.optJSONObject(parent) ?: throw IOException("Cloud rule does not contain $parent")
         val curParent = gb.optJSONObject(parent) ?: JSONObject().also { gb.put(parent, it) }
         val changed = mutableListOf<String>()
         var same = 0
@@ -3233,48 +3231,48 @@ object Restores {
 
     private fun restoreFpsList(root: JSONObject, gb: JSONObject, baseGb: JSONObject, pkg: String): TemplateResult {
         val name = scopeLabel("novatek")
-        val baseExt = baseGb.optJSONObject("novatek_extend_config") ?: throw IOException("云端规则里没有 novatek_extend_config")
-        val baseList = baseExt.optJSONArray("novatek_gex_fps_limit") ?: throw IOException("云端规则里没有 novatek_gex_fps_limit")
+        val baseExt = baseGb.optJSONObject("novatek_extend_config") ?: throw IOException("novatek_extend_config not found in cloud rule")
+        val baseList = baseExt.optJSONArray("novatek_gex_fps_limit") ?: throw IOException("novatek_gex_fps_limit not found in cloud rule")
         val ext = gb.optJSONObject("novatek_extend_config") ?: JSONObject().also { gb.put("novatek_extend_config", it) }
         val curList = ext.optJSONArray("novatek_gex_fps_limit") ?: JSONArray()
         val targets = splitPkgs(pkg)
         if (targets.isEmpty()) {
             if (curList.toString() == baseList.toString()) {
-                return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+                return TemplateResult("$name already matches cloud defaults; no restore needed", root.toString())
             }
             ext.put("novatek_gex_fps_limit", JSONArray(baseList.toString()))
-            return TemplateResult("已按云端规则还原$name（${baseList.length()} 条）", root.toString())
+            return TemplateResult("Restored $name from cloud config (${baseList.length()} entries)", root.toString())
         }
         val merged = mergeByPrefix(curList, baseList, targets)
         if (merged.result.toString() == curList.toString()) {
-            return TemplateResult("${targets.joinToString("、")} 的$name 已与云端一致", root.toString())
+            return TemplateResult("$name for ${targets.joinToString(", ")} already matches cloud defaults", root.toString())
         }
         ext.put("novatek_gex_fps_limit", merged.result)
         return TemplateResult(
-            "已按云端规则还原 ${targets.joinToString("、")} 的$name（移除 ${merged.removed} 条，写回 ${merged.added} 条）",
+            "Restored $name for ${targets.joinToString(", ")} from cloud config (removed ${merged.removed}, restored ${merged.added})",
             root.toString(),
         )
     }
 
     private fun restoreMigt(root: JSONObject, gb: JSONObject, baseGb: JSONObject, pkg: String): TemplateResult {
         val name = scopeLabel("migt")
-        val baseList = baseGb.optJSONArray("migt") ?: throw IOException("云端规则里没有 migt 数组")
+        val baseList = baseGb.optJSONArray("migt") ?: throw IOException("migt array not found in cloud rule")
         val curList = gb.optJSONArray("migt") ?: JSONArray()
         val targets = splitPkgs(pkg)
         if (targets.isEmpty()) {
             if (curList.toString() == baseList.toString()) {
-                return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+                return TemplateResult("$name already matches cloud defaults; no restore needed", root.toString())
             }
             gb.put("migt", JSONArray(baseList.toString()))
-            return TemplateResult("已按云端规则还原$name（${baseList.length()} 条）", root.toString())
+            return TemplateResult("Restored $name from cloud config (${baseList.length()} entries)", root.toString())
         }
         val merged = mergeByPrefix(curList, baseList, targets.map { "$it;" })
         if (merged.result.toString() == curList.toString()) {
-            return TemplateResult("${targets.joinToString("、")} 的$name 已与云端一致", root.toString())
+            return TemplateResult("$name for ${targets.joinToString(", ")} already matches cloud defaults", root.toString())
         }
         gb.put("migt", merged.result)
         return TemplateResult(
-            "已按云端规则还原 ${targets.joinToString("、")} 的$name（移除 ${merged.removed} 条，写回 ${merged.added} 条）",
+            "Restored $name for ${targets.joinToString(", ")} from cloud config (removed ${merged.removed}, restored ${merged.added})",
             root.toString(),
         )
     }
@@ -3282,9 +3280,9 @@ object Restores {
     private fun restorePid(root: JSONObject, gb: JSONObject, baseGb: JSONObject, pkg: String): TemplateResult {
         val name = scopeLabel("pid_thermal")
         val overrides = gb.optJSONObject("booster_config")?.optJSONArray("ovrride_config")
-            ?: throw IOException("当前规则里没有 booster_config.ovrride_config")
+            ?: throw IOException("booster_config.ovrride_config not found in current rule")
         val baseOverrides = baseGb.optJSONObject("booster_config")?.optJSONArray("ovrride_config")
-            ?: throw IOException("云端规则里没有 booster_config.ovrride_config")
+            ?: throw IOException("booster_config.ovrride_config not found in cloud rule")
         val baseByName = linkedMapOf<String, JSONObject>()
         for (i in 0 until baseOverrides.length()) {
             val item = baseOverrides.optJSONObject(i) ?: continue
@@ -3322,32 +3320,26 @@ object Restores {
             }
             if (changedThis) {
                 groups++
-                hitNames.add(gameName.ifBlank { "未命名策略组" })
+                hitNames.add(gameName.ifBlank { "Unnamed Policy Group" })
             }
         }
         if (groups == 0) {
-            if (same > 0) return TemplateResult("$name 已与云端一致，无需还原", root.toString())
+            if (same > 0) return TemplateResult("$name already matches cloud defaults; no restore needed", root.toString())
             throw IOException(
-                if (targets.isEmpty()) "云端规则里没有可还原的$name"
-                else "云端规则里没有 ${targets.joinToString(", ")} 对应策略组的$name",
+                if (targets.isEmpty()) "No restorable $name found in cloud rule"
+                else "No $name found in cloud rule for policy groups matching ${targets.joinToString(", ")}",
             )
         }
-        val who = if (targets.isEmpty()) "全部策略组" else hitNames.joinToString("、")
-        val tail = if (noBase > 0) "；$noBase 个策略组云端没有对应条目，未改动" else ""
-        return TemplateResult("已按云端规则还原 $who 的$name（共 $fields 处）$tail", root.toString())
+        val who = if (targets.isEmpty()) "All policy groups" else hitNames.joinToString(", ")
+        val tail = if (noBase > 0) "; $noBase policy groups missing in cloud rule, left untouched" else ""
+        return TemplateResult("Restored $name for $who from cloud config ($fields entries)$tail", root.toString())
     }
 
     private data class MergeResult(val result: JSONArray, val removed: Int, val added: Int)
 
-    /**
-     * 只替换命中前缀的条目，其余条目按原顺序保留。
-     * 写回的云端条目会尽量放回它在云端规则里的相对位置（跟在同一个前置条目之后），
-     * 这样即使当前规则里该条目已被整条删除，还原后顺序仍与云端一致。
-     */
     private fun mergeByPrefix(current: JSONArray, baseline: JSONArray, prefixes: List<String>): MergeResult {
         fun hit(value: String) = prefixes.any { value.startsWith(it) }
 
-        // 云端命中条目 + 它在云端里的前一个「非命中」条目（锚点）
         val baseHits = mutableListOf<Pair<String, String?>>()
         var anchor: String? = null
         for (i in 0 until baseline.length()) {
@@ -3355,7 +3347,6 @@ object Restores {
             if (hit(value)) baseHits.add(value to anchor) else anchor = value
         }
 
-        // 当前规则里去掉命中条目
         val out = mutableListOf<String>()
         var removed = 0
         for (i in 0 until current.length()) {
@@ -3363,7 +3354,6 @@ object Restores {
             if (hit(value)) removed++ else out.add(value)
         }
 
-        // 按云端顺序写回
         baseHits.forEach { (value, itsAnchor) ->
             val at = if (itsAnchor == null) 0 else out.indexOf(itsAnchor).let { if (it < 0) out.size else it + 1 }
             var insertAt = at
@@ -3384,11 +3374,11 @@ object Restores {
         missing: Int,
     ): TemplateResult {
         if (changed.isEmpty()) {
-            if (same > 0) return TemplateResult("$name 已与云端一致，无需还原", root.toString())
-            throw IOException("云端规则里没有 $name 对应字段，无法还原")
+            if (same > 0) return TemplateResult("$name already matches cloud defaults; no restore needed", root.toString())
+            throw IOException("Cloud rule has no matching field for $name; cannot restore")
         }
-        val tail = if (missing > 0) "；$missing 个字段云端没有，未改动" else ""
-        return TemplateResult("已按云端规则还原$name（${changed.joinToString("、")}）$tail", root.toString())
+        val tail = if (missing > 0) "; $missing fields missing in cloud rule, left untouched" else ""
+        return TemplateResult("Restored $name (${changed.joinToString(", ")}) from cloud config$tail", root.toString())
     }
 
     private fun splitPkgs(pkg: String): List<String> = pkg.split(',', ';', '\n', '\t', ' ')
@@ -3432,13 +3422,13 @@ object Restores {
     private fun booster(root: JSONObject): JSONObject {
         root.optJSONObject("params")?.optJSONObject("game_booster")?.let { return it }
         root.optJSONObject("game_booster")?.let { return it }
-        throw IOException("未找到 game_booster")
+        throw IOException("game_booster not found")
     }
 }
 
 fun normalizeJson(raw: String): String {
     val t = raw.trim()
-    if (t.isEmpty()) throw IOException("JSON 为空")
+    if (t.isEmpty()) throw IOException("JSON is empty")
     return if (t.startsWith("[")) JSONArray(t).toString() else JSONObject(t).toString()
 }
 
