@@ -30,3 +30,7 @@ JoyCtl Android is an on-device Android implementation based on [hexwander/joyctl
 
 Release APKs are built, signed, and published automatically via GitHub Actions whenever a version tag matching `v*` is pushed.
 
+## Credits & Acknowledgments
+
+- **Original Android Port**: [308532806/joyctl-android](https://github.com/308532806/joyctl-android) by [@308532806](https://github.com/308532806)
+- **Original Desktop Tool**: [hexwander/joyctl](https://github.com/hexwander/joyctl) by [@hexwander](https://github.com/hexwander)
