@@ -29,24 +29,28 @@ jobs:
       - name: Install SDK packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Restore release keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      - name: Generate release keystore automatically
         run: |
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > app/release.jks
+          keytool -genkeypair -v \
+            -keystore app/release.jks \
+            -alias joyctl \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=JoyCtl, OU=JoyCtl, O=JoyCtl, L=City, S=State, C=US"
 
       - name: Build release APK
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: android
+          ANDROID_KEY_ALIAS: joyctl
+          ANDROID_KEY_PASSWORD: android
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Rename APK
         run: |
           NAME="${GITHUB_REF_NAME:-manual}"
-          # Branch names may contain '/', which could be treated as directory paths; replace them with '-' here
           SAFE_NAME=$(printf '%s' "$NAME" | tr '/' '-')
           cp app/build/outputs/apk/release/app-release.apk "JoyCtl-Android-${SAFE_NAME}.apk"
           ls -l JoyCtl-Android-*.apk
