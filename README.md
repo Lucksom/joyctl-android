@@ -1,31 +1,32 @@
 # JoyCtl Android
 
-JoyCtl Android 是基于 [hexwander/joyctl](https://github.com/hexwander/joyctl) 的安卓版实现。原桌面版通过 PC 侧 ADB 操作已 root 的小米手机；本项目改为在手机本机通过 `su` 读取和写入 Joyose 云控数据库。
+JoyCtl Android is an on-device Android implementation based on [hexwander/joyctl](https://github.com/hexwander/joyctl). While the original desktop version controls rooted Xiaomi devices via PC-side ADB, this project reads and writes directly to the Joyose cloud control database on the device using `su`.
 
-## 功能
+## Features
 
-- 底部导航切换：设备、云端、规则、日志；按钮有按压水波纹，点击不再整页禁用
-- 设备页按 PC 版对称布局：拉取/推送、冻结/恢复，刷新状态在底部
-- 设备信息用机型/代号/系统/Root/云控徽章展示
-- 云端拉取优先使用本机 Joyose 版本号；拉不到再按当前机型探测可用配置
-- 规则页模板改成 PC 风格卡片：标题、说明、应用/选择游戏；选择游戏支持多选，点「修改」后才写入规则。「全部游戏」只改 Joyose 配置里已有的游戏条目
-- 「放宽所有游戏的温控」支持自定义阈值和多选游戏；写入前会转成 Joyose PID 格式（例如 47 → 47:48），只改已有 PID 策略组
-- 功能识别会同步帧率锁、温控 PID、migt 大核基线和包名改动；日志页按步骤展示成功/失败，并可复制
-- 拉取设备配置或手动导入后，会自动按本机 Joyose 版本拉取云端未修改配置做对照；保存当前规则不会改对照基线
-- 规则列表改为卡片：显示模块类型、序号，点卡片切换；未保存修改会提示
-- 云端拉取会同时载入 booster_config 与 common_config（status=1 且有内容的规则）
-- 说明文案收到各面板右上角 ⓘ，点击后展开
-- 读取 `com.xiaomi.joyose` 的 `teg_config.db` 并写回
-- 推送前备份 `.joyctl.bak`，推送后回读校验
-- 冻结/恢复 Joyose MCC 云控：`persist.sys.sc_allow_conn=0/1`
-- 设备页提供「恢复官方 Joyose（异常时使用）」：清空 Joyose 及相关系统应用数据，重新启用云控接收器并发送开机广播
+- **Bottom Navigation**: Switch between Device, Cloud, Rules, and Logs tabs with ripple touch effects; clicking buttons no longer disables the entire page.
+- **Symmetric Device Layout**: Modeled after the PC version with Pull/Push and Freeze/Restore actions, plus status refresh at the bottom.
+- **Device Info Badges**: Clear badge indicators for Model, Codename, OS Version, Root Status, and Cloud Control Status.
+- **Smart Cloud Fetching**: Prioritizes pulling configs matching the local Joyose version; if unavailable, it probes for compatible configs based on your device model.
+- **PC-Style Rule Cards**: Displays title, description, and game selection. Supports multi-selection; rules are only written after tapping "Modify". "All Games" only alters game entries already present in your Joyose config.
+- **Relax Thermal Throttling for All Games**: Supports custom temperature thresholds and multi-game selection; values are converted to Joyose PID format before writing (e.g., `47` → `47:48`), modifying only existing PID policy groups.
+- **Feature Detection & Sync**: Synchronizes FPS lock, thermal PID, migt prime core baselines, and package name changes. The Logs page displays step-by-step success/failure details with one-tap copy.
+- **Baseline Comparison**: Automatically fetches unmodified cloud configs matching your local Joyose version as a baseline after pulling or importing configs; saving rules will not alter the baseline.
+- **Card-Based Rule List**: Displays module type and index. Tap to switch between cards; alerts will notify you of unsaved changes.
+- **Comprehensive Cloud Pulling**: Loads both `booster_config` and `common_config` simultaneously (for rules with `status=1` containing valid data).
+- **Collapsible Guides**: Help and documentation are neatly tucked under an ⓘ icon at the top right of each panel.
+- **Database Management**: Directly reads and writes `teg_config.db` under `com.xiaomi.joyose`.
+- **Safety First**: Automatically creates a `.joyctl.bak` backup before pushing, with post-push readback verification.
+- **Freeze/Restore Joyose MCC**: Toggle cloud control on/off via `persist.sys.sc_allow_conn=0/1`.
+- **Restore Official Joyose (Emergency Recovery)**: Clears data for Joyose and related system apps, re-enables cloud control broadcast receivers, and triggers a boot completed broadcast.
 
-## 使用前提
+## Prerequisites
 
-- 小米/红米/POCO 设备
-- 已 root，且 `su` 可被第三方 app 调用
-- 修改系统云控可能影响发热、续航和稳定性，请先备份
+- Xiaomi / Redmi / POCO devices.
+- Root access (`su` must be accessible to third-party apps via Magisk, KernelSU, or APatch).
+- Modifying system cloud control configurations may impact thermal behavior, battery life, and system stability. **Always make a backup beforehand.**
 
-## 构建
+## Build
 
-Release APK 由 GitHub Actions 在 tag `v*` 时签名发布。
+Release APKs are built, signed, and published automatically via GitHub Actions whenever a version tag matching `v*` is pushed.
+
